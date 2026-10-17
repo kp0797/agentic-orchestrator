@@ -1,0 +1,15 @@
+name: greenfield
+description: Build the URL shortener v1 from an empty Spring Boot skeleton.
+requirement: |
+  Build a URL shortener service.
+  - Create a short link for a long URL, optionally with a custom alias and an expiry time.
+  - Redirect a short code to its long URL.
+  - Show per-link click statistics: clicks per day and top referrers.
+  - It must handle 1,000 redirects per second on one node and keep redirecting if the cache is down.
+  - Reject unsafe URLs (only http and https; no private or loopback addresses).
+template: templates/spring-boot-service
+cassette: cassette.jsonl
+budget:
+  maxWallMinutes: 60
+  maxTokens: 3000000
+  maxCostUsd: 30

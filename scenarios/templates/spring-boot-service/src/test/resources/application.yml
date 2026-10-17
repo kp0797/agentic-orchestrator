@@ -1,0 +1,13 @@
+# Tests run without Docker by default: H2 in PostgreSQL mode, no Redis.
+spring:
+  datasource:
+    url: jdbc:h2:mem:test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  data:
+    redis:
+      repositories:
+        enabled: false

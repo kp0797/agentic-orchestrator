@@ -17,6 +17,7 @@ public final class NodeRuntime {
     String approvedDigest;
     boolean approvalRequired;
     String effectiveRisk;
+    String policyReason;
 
     NodeRuntime(String nodeId) {
         this.nodeId = nodeId;
@@ -41,4 +42,5 @@ public final class NodeRuntime {
     public String approvedDigest() { return approvedDigest; }
     public boolean approvalRequired() { return approvalRequired; }
     public String effectiveRisk() { return effectiveRisk; }
+    public String policyReason() { return policyReason; }
 }

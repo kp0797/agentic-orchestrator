@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${node.id()})}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+<main>
+    <div class="flash" th:if="${flash}" th:text="${flash}"></div>
+    <p><a th:href="@{/runs/{r}(r=${runId})}">&larr; back to run</a></p>
+    <h1 th:text="${node.id()}"></h1>
+    <p><span class="pill" th:classappend="${rt.status().name()}" th:text="${rt.status().name()}"></span>
+        <span class="muted" th:text="${node.type().name() + ' · executor ' + node.executorKey() + ' · attempt ' + rt.attempts() + ' of ' + node.maxTotalAttempts()}"></span></p>
+    <p th:text="${node.description()}"></p>
+    <p class="muted">Policy: <span th:text="${policy}"></span></p>
+
+    <div class="card" th:if="${awaiting}">
+        <h2 style="margin-top:0">Your decision</h2>
+        <p><strong>Why a human is needed:</strong> <span th:text="${approvalReason}"></span></p>
+        <p class="muted">You are approving output digest <span class="mono" th:text="${rt.outputDigest()}"></span>.
+            If the output changes, this approval no longer applies.</p>
+        <form method="post" th:action="@{/runs/{r}/nodes/{n}/decision(r=${runId},n=${node.id()})}">
+            <input type="hidden" name="digest" th:value="${rt.outputDigest()}">
+            <div class="row">
+                <label>Your name<input name="approver" required></label>
+                <label>Comment (required to reject: it is the agent's feedback)<input name="comment"></label>
+            </div>
+            <p class="row" style="max-width:320px">
+                <button class="primary" name="decision" value="approve">Approve</button>
+                <button class="danger" name="decision" value="reject">Reject with feedback</button>
+            </p>
+        </form>
+    </div>
+
+    <h2>Exit gates (latest attempt)</h2>
+    <table>
+        <tr><th>Gate</th><th>Result</th><th>Detail</th></tr>
+        <tr th:each="g : ${gates}" th:class="${g.css}">
+            <td class="mono" th:text="${g.node}"></td><td th:text="${g.type}"></td>
+            <td><pre style="background:none;color:inherit;padding:0;margin:0;white-space:pre-wrap" th:text="${g.detail}"></pre></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(gates)}"><td colspan="3" class="muted">No gate results for this attempt yet.</td></tr>
+    </table>
+
+    <div th:if="${!#lists.isEmpty(failures)}">
+        <h2>Failed attempts (fed back to the agent)</h2>
+        <pre th:each="f : ${failures}" th:text="${f}" style="white-space:pre-wrap"></pre>
+    </div>
+
+    <h2>Artifacts</h2>
+    <div th:each="a : ${artifacts}" class="card">
+        <strong class="mono" th:text="${a.name}"></strong> <span class="muted mono" th:text="${a.hash.substring(0,12)}"></span>
+        <span th:if="${a.truncated}" class="muted">(truncated)</span>
+        <pre th:text="${a.content}"></pre>
+    </div>
+    <p th:if="${#lists.isEmpty(artifacts)}" class="muted">No artifacts yet.</p>
+</main>
+</body>
+</html>

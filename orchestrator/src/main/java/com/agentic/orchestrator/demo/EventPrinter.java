@@ -31,7 +31,7 @@ public final class EventPrinter {
         }
     }
 
-    static String describe(Event e) {
+    public static String describe(Event e) {
         return switch (e.type()) {
             case NODE_STATUS_CHANGED -> e.get("from") + " -> " + e.get("to") + "  (" + e.get("reason") + ")";
             case NODE_ATTEMPT_STARTED -> "attempt " + e.get("attempt") + "/" + e.get("maxAttempts") + " via "

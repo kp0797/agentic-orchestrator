@@ -1,0 +1,11 @@
+name: pipeline-smoke
+description: >-
+  Pipeline smoke test on a tiny Base62 library. Its cassette was generated from scripted answers,
+  not recorded from a model: it demonstrates the orchestration machinery, not model quality.
+requirement: Encode numeric ids as short Base62 codes and back.
+template: templates/codec-library
+cassette: cassette.jsonl
+budget:
+  maxWallMinutes: 30
+  maxTokens: 2000000
+  maxCostUsd: 25

@@ -32,6 +32,16 @@ public final class JsonlCassetteFile {
         }
     }
 
+    public static synchronized void append(Cassette.Entry entry, Path file) {
+        try {
+            Files.createDirectories(file.toAbsolutePath().getParent());
+            Files.writeString(file, JSON.writeValueAsString(entry) + System.lineSeparator(), StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot append to cassette " + file, e);
+        }
+    }
+
     public static void write(Cassette cassette, Path file) {
         try {
             Files.createDirectories(file.toAbsolutePath().getParent());

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${runId})}"></head>
+<body>
+<meta th:if="${live}" http-equiv="refresh" content="3">
+<header th:replace="~{fragments :: header}"></header>
+<main>
+    <div class="flash" th:if="${flash}" th:text="${flash}"></div>
+    <h1><span th:text="${scenario}"></span> &middot; <span th:text="${stage}"></span> run
+        <span class="mono muted" th:text="${runId}"></span></h1>
+    <p><span class="pill" th:classappend="${status}" th:text="${status}"></span>
+        <span class="muted" th:text="${reason}"></span>
+        <a th:if="${otherRun != null}" th:href="@{/runs/{id}(id=${otherRun})}"
+           th:text="${stage == 'planning'} ? 'Go to the execution run' : 'Go to the planning run'"></a></p>
+    <div class="row" style="max-width:420px">
+        <form method="post" th:action="@{/runs/{id}/stop(id=${runId})}"><button class="danger">Kill switch (safe-stop)</button></form>
+        <form method="post" th:action="@{/runs/{id}/resume(id=${runId})}"><button>Resume</button></form>
+    </div>
+
+    <h2>Nodes</h2>
+    <table>
+        <tr><th>Node</th><th>Type</th><th>Status</th><th>Attempts</th><th>Executor</th><th>Risk</th><th>Last failure</th></tr>
+        <tr th:each="n : ${nodes}">
+            <td><a th:href="@{/runs/{r}/nodes/{n}(r=${runId},n=${n.id})}" th:text="${n.id}"></a></td>
+            <td th:text="${n.type}"></td>
+            <td><span class="pill" th:classappend="${n.status}" th:text="${n.status}"></span>
+                <a th:if="${n.awaiting}" th:href="@{/runs/{r}/nodes/{n}(r=${runId},n=${n.id})}">review</a></td>
+            <td th:text="${n.attempts}"></td>
+            <td class="mono" th:text="${n.executor}"></td>
+            <td th:text="${n.risk}"></td>
+            <td class="muted" th:text="${n.lastFailure != null and n.lastFailure.length() > 140} ? ${n.lastFailure.substring(0,140)} + '...' : ${n.lastFailure}"></td>
+        </tr>
+    </table>
+
+    <h2>Reliability</h2>
+    <div class="card mono" th:text="${metrics}"></div>
+    <p>Audit chain: <span class="pill" th:classappend="${auditValid} ? 'VALID' : 'BROKEN'" th:text="${auditValid} ? 'VALID' : 'BROKEN'"></span>
+        <span class="mono muted" th:text="${auditDetail}"></span></p>
+
+    <h2>Audit timeline</h2>
+    <table class="mono">
+        <tr><th>#</th><th>+ms</th><th>Node</th><th>Event</th><th>Detail</th></tr>
+        <tr th:each="e : ${events}" th:class="${e.css}">
+            <td th:text="${e.seq}"></td><td th:text="${e.offsetMs}"></td><td th:text="${e.node}"></td>
+            <td th:text="${e.type}"></td><td th:text="${e.detail}"></td>
+        </tr>
+    </table>
+</main>
+</body>
+</html>

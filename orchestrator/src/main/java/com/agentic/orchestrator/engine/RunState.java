@@ -59,10 +59,14 @@ public final class RunState {
             case RUN_FAILED -> setStatus(RunStatus.FAILED, e);
             case RUN_ROLLED_BACK -> setStatus(RunStatus.ROLLED_BACK, e);
             case NODE_STATUS_CHANGED -> n.status = NodeStatus.valueOf(e.get("to"));
-            case NODE_RESET -> n.reset();
+            case NODE_RESET -> {
+                n.reset();
+                n.lastFailure = e.get("feedback");
+            }
             case POLICY_EVALUATED -> {
                 n.approvalRequired = Boolean.parseBoolean(e.get("approvalRequired"));
                 n.effectiveRisk = e.get("risk");
+                n.policyReason = e.get("reason");
             }
             case NODE_ATTEMPT_STARTED -> {
                 n.attempts = Integer.parseInt(e.get("attempt"));

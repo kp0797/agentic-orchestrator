@@ -3,7 +3,6 @@ spring:
     name: agentic-orchestrator
   main:
     banner-mode: off
-    web-application-type: none
   # Day 1 keeps run state in memory. The 'postgres' profile turns on the JDBC event store.
   autoconfigure:
     exclude:
@@ -13,6 +12,32 @@ spring:
 logging:
   level:
     root: warn
+
+server:
+  port: 8080
+
+agentic:
+  # replay: recorded answers only (no key, no network). live: real calls. record: real calls, saved.
+  mode: ${AGENTIC_MODE:replay}
+  runs-dir: ${AGENTIC_RUNS_DIR:runs}
+  policies-dir: ${AGENTIC_POLICIES_DIR:policies}
+  scenarios-dir: ${AGENTIC_SCENARIOS_DIR:scenarios}
+  maven-offline: ${AGENTIC_MVN_OFFLINE:false}
+  max-parallel: 4
+  # Model per agent. Changing one changes the request keys, so recorded cassettes must be re-recorded.
+  models:
+    requirements: { model: claude-sonnet-5-5, max-tokens: 8192, temperature: 0.0 }
+    planner:      { model: claude-opus-5-5,   max-tokens: 8192, temperature: 0.0 }
+    architect:    { model: claude-opus-5-5,   max-tokens: 16000, temperature: 0.0 }
+    coder:        { model: claude-opus-5-5,   max-tokens: 16000, temperature: 0.0 }
+    tester:       { model: claude-sonnet-5-5, max-tokens: 16000, temperature: 0.0 }
+    docs:         { model: claude-haiku-5-5,  max-tokens: 4096, temperature: 0.0 }
+  # USD per million tokens (input / output), list prices as of October 2026.
+  prices:
+    claude-haiku-5-5:  { input-per-m-tok: 0.10, output-per-m-tok: 0.50 }
+    claude-sonnet-5-5: { input-per-m-tok: 2.0,  output-per-m-tok: 10.0 }
+    claude-opus-5-5:   { input-per-m-tok: 4.0,  output-per-m-tok: 20.0 }
+    claude-fable-5-1:  { input-per-m-tok: 10.0, output-per-m-tok: 50.0 }
 
 ---
 spring:

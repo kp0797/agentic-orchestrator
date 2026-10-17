@@ -1,0 +1,39 @@
+# Policy-as-code. This file and autonomy.yaml are protected paths: no agent can edit them.
+# Changes here go through normal human code review.
+
+# Minimum risk per node type. Policy can raise the planner's risk, never lower it.
+riskFloors:
+  DESIGN: MEDIUM
+  IMPLEMENT: MEDIUM
+  SCHEMA_MIGRATION: HIGH
+  RELEASE_READINESS: HIGH
+
+# Any node at or above this risk waits for a human decision bound to its output digest.
+approvalAtOrAbove: HIGH
+
+# No agent may write these, and no merge may change them.
+protectedPaths:
+  - "policies/**"
+  - ".github/**"
+  - "**/application-prod.yml"
+  - "Dockerfile"
+  - "docker-compose.yml"
+
+# Changes here are allowed but escalate to human approval.
+approvalPaths:
+  - "**/db/migration/**"
+  - "pom.xml"
+  - "**/security/**"
+
+# A node's change above this size fails its gate: split the work instead.
+maxDiffLines: 600
+
+# Executors that may never run (e.g. disabled during an incident).
+deniedExecutors: []
+
+# Shown to the approver when a dependency is added; the review is manual.
+licenseAllowlist:
+  - Apache-2.0
+  - MIT
+  - BSD-3-Clause
+  - EPL-2.0

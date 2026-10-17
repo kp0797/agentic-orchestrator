@@ -168,6 +168,14 @@ public final class Engine {
      * approvals are invalidated and they get a fresh retry budget; untouched nodes are reused.
      */
     public List<String> markStale(String runId, String nodeId, String reason) {
+        return markStale(runId, nodeId, reason, null);
+    }
+
+    /**
+     * As {@link #markStale(String, String, String)}, and hands {@code feedback} to the re-run of
+     * {@code nodeId} (for example the integration test failures its code caused).
+     */
+    public List<String> markStale(String runId, String nodeId, String reason, String feedback) {
         List<String> affected = new ArrayList<>();
         withSession(runId, s -> {
             for (String id : s.plan.downstreamInclusive(nodeId)) {
@@ -191,7 +199,11 @@ public final class Engine {
                 if (s.state.node(id).status() != NodeStatus.PENDING) {
                     s.transition(id, NodeStatus.PENDING, "re-plan: " + reason);
                 }
-                s.emit(EventType.NODE_RESET, id, Map.of("reason", reason));
+                Map<String, String> reset = new LinkedHashMap<>(Map.of("reason", reason));
+                if (feedback != null && id.equals(nodeId)) {
+                    reset.put("feedback", feedback);
+                }
+                s.emit(EventType.NODE_RESET, id, reset);
                 affected.add(id);
             }
         });
@@ -411,7 +423,7 @@ public final class Engine {
             if (result == null) {
                 return AttemptOutcome.failed(ctx, "executor returned no result", null);
             }
-            GateContext gctx = new GateContext(ctx.runId(), node, ctx.attempt(), result.outputs(), Optional.empty());
+            GateContext gctx = new GateContext(ctx.runId(), node, ctx.attempt(), result.outputs(), result.workspace());
             List<GateResult> gateResults = new ArrayList<>();
             FaultSpec injected = null;
             for (String gateId : node.exitGates()) {
@@ -431,6 +443,8 @@ public final class Engine {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return AttemptOutcome.failed(ctx, "interrupted", null);
+        } catch (ExecutorFailure e) {
+            return AttemptOutcome.failed(ctx, e.getMessage(), null).withUsage(e.tokensUsed(), e.costUsd());
         } catch (Exception e) {
             return AttemptOutcome.failed(ctx, e.getClass().getSimpleName() + ": " + e.getMessage(), null);
         }
@@ -447,6 +461,13 @@ public final class Engine {
         if (o.result() != null) {
             recordOutputs(s, node, o);
         }
+        if (o.failedTokens() > 0 || o.failedCost() > 0) {
+            s.emit(EventType.TOKENS_USED, node.id(), Map.of(
+                    "tokens", String.valueOf(o.failedTokens()),
+                    "costUsd", String.valueOf(o.failedCost()),
+                    "attempt", String.valueOf(o.attempt()),
+                    "outcome", "failed"));
+        }
         if (o.error() != null) {
             s.emit(EventType.NODE_ATTEMPT_FAILED, node.id(), Map.of(
                     "attempt", String.valueOf(o.attempt()), "reason", o.error()));
@@ -456,12 +477,16 @@ public final class Engine {
         s.transition(node.id(), NodeStatus.VERIFYING, "running " + node.exitGates().size() + " exit gate(s)");
         GateResult firstFailure = null;
         for (GateResult g : o.gateResults()) {
-            s.emit(EventType.GATE_EVALUATED, node.id(), Map.of(
+            Map<String, String> data = new LinkedHashMap<>(Map.of(
                     "gate", g.gateId(),
                     "phase", "exit",
                     "passed", String.valueOf(g.passed()),
                     "detail", g.detail(),
                     "attempt", String.valueOf(o.attempt())));
+            if (g.escalates()) {
+                data.put("escalation", g.escalation());
+            }
+            s.emit(EventType.GATE_EVALUATED, node.id(), data);
             if (!g.passed() && firstFailure == null) {
                 firstFailure = g;
             }
@@ -475,9 +500,15 @@ public final class Engine {
         }
         NodeRuntime rt = s.state.node(node.id());
         String digest = Hashing.sha256(String.join(",", rt.outputHashes().stream().sorted().toList()));
-        s.emit(EventType.NODE_OUTPUT_SEALED, node.id(), Map.of("digest", digest,
+        List<String> escalations = o.gateResults().stream().filter(GateResult::escalates)
+                .map(g -> g.gateId() + ": " + g.escalation()).toList();
+        Map<String, String> sealed = new LinkedHashMap<>(Map.of("digest", digest,
                 "artifacts", String.valueOf(rt.outputHashes().size())));
-        if (!rt.approvalRequired()) {
+        if (!escalations.isEmpty()) {
+            sealed.put("escalations", String.join(" | ", escalations));
+        }
+        s.emit(EventType.NODE_OUTPUT_SEALED, node.id(), sealed);
+        if (!rt.approvalRequired() && escalations.isEmpty()) {
             s.transition(node.id(), NodeStatus.SUCCEEDED, "all exit gates passed");
             return;
         }
@@ -490,10 +521,12 @@ public final class Engine {
                     "reason", "output changed to " + digest));
         }
         s.transition(node.id(), NodeStatus.AWAITING_APPROVAL, "high-impact output needs a human decision");
+        String policyWhy = rt.policyReason() == null ? "risk " + rt.effectiveRisk() : "policy: " + rt.policyReason();
+        String why = escalations.isEmpty() ? policyWhy
+                : (rt.approvalRequired() ? policyWhy + "; " : "") + "gates: " + String.join("; ", escalations);
         s.emit(EventType.APPROVAL_REQUESTED, node.id(), Map.of("digest", digest,
-                "risk", String.valueOf(rt.effectiveRisk())));
-        approvalHandler.onApprovalRequested(new ApprovalRequest(s.runId, node, digest, rt.outputHashes(),
-                        "risk " + rt.effectiveRisk()))
+                "risk", String.valueOf(rt.effectiveRisk()), "reason", why));
+        approvalHandler.onApprovalRequested(new ApprovalRequest(s.runId, node, digest, rt.outputHashes(), why))
                 .ifPresent(d -> applyDecision(s, node, d));
     }
 
@@ -751,13 +784,19 @@ public final class Engine {
     }
 
     private record AttemptOutcome(String nodeId, int attempt, String executorKey, NodeResult result,
-                                  List<GateResult> gateResults, String error, FaultSpec fault) {
+                                  List<GateResult> gateResults, String error, FaultSpec fault,
+                                  long failedTokens, double failedCost) {
         static AttemptOutcome completed(NodeContext c, NodeResult r, List<GateResult> gates, FaultSpec fault) {
-            return new AttemptOutcome(c.node().id(), c.attempt(), c.executorKey(), r, List.copyOf(gates), null, fault);
+            return new AttemptOutcome(c.node().id(), c.attempt(), c.executorKey(), r, List.copyOf(gates), null, fault,
+                    0, 0);
         }
 
         static AttemptOutcome failed(NodeContext c, String error, FaultSpec fault) {
-            return new AttemptOutcome(c.node().id(), c.attempt(), c.executorKey(), null, List.of(), error, fault);
+            return new AttemptOutcome(c.node().id(), c.attempt(), c.executorKey(), null, List.of(), error, fault, 0, 0);
+        }
+
+        AttemptOutcome withUsage(long tokens, double cost) {
+            return new AttemptOutcome(nodeId, attempt, executorKey, result, gateResults, error, fault, tokens, cost);
         }
     }
 

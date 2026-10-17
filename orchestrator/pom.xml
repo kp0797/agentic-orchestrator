@@ -27,6 +27,30 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+        <!-- Approval console -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <!-- Live model gateway. The model module only, not the starter: no autoconfiguration,
+             so replay mode never needs or reads an API key. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-anthropic</artifactId>
+        </dependency>
+        <!-- Brownfield codebase reasoning (repo indexer, impact analysis) -->
+        <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-core</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
@@ -93,6 +117,11 @@
                     </includes>
                     <!-- Tests that need a Docker daemon are tagged and skipped unless -Ddocker=true -->
                     <excludedGroups>${excluded.groups}</excludedGroups>
+                    <!-- End-to-end tests run real Maven builds in scratch workspaces; they reuse this
+                         build's local repository so they work offline. -->
+                    <systemPropertyVariables>
+                        <maven.repo.local>${settings.localRepository}</maven.repo.local>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Agentic SDLC console')}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+<main>
+    <div class="flash" th:if="${flash}" th:text="${flash}"></div>
+    <h1>Scenarios</h1>
+    <p class="muted">Model mode: <span class="pill" th:text="${mode}">REPLAY</span>
+        <span th:if="${mode.name() == 'REPLAY'}">Recorded answers only: no API key, no network calls to a model.</span></p>
+    <table>
+        <tr><th>Scenario</th><th>Description</th><th>Starts from</th><th>Recording</th><th></th></tr>
+        <tr th:each="s : ${scenarios}">
+            <td th:text="${s.name}"></td>
+            <td th:text="${s.description}"></td>
+            <td class="mono" th:text="${s.template}"></td>
+            <td th:text="${s.hasCassette} ? 'recorded' : 'not recorded yet'"></td>
+            <td><form method="post" th:action="@{/scenarios/{n}/start(n=${s.name})}"><button class="primary">Start</button></form></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(scenarios)}"><td colspan="5" class="muted">No scenarios found.</td></tr>
+    </table>
+
+    <h2>Runs</h2>
+    <table>
+        <tr><th>Scenario</th><th>Planning run</th><th>Execution run</th><th>Waiting for you</th></tr>
+        <tr th:each="r : ${runs}">
+            <td th:text="${r.scenario}"></td>
+            <td><a class="mono" th:href="@{/runs/{id}(id=${r.planningRun})}" th:text="${r.planningRun}"></a>
+                <span class="pill" th:classappend="${r.planningStatus}" th:text="${r.planningStatus}"></span></td>
+            <td><span th:if="${r.executionRun == null}" class="muted">after the plan is approved</span>
+                <a th:if="${r.executionRun != null}" class="mono" th:href="@{/runs/{id}(id=${r.executionRun})}" th:text="${r.executionRun}"></a>
+                <span th:if="${r.executionRun != null}" class="pill" th:classappend="${r.executionStatus}" th:text="${r.executionStatus}"></span></td>
+            <td><a th:each="a : ${r.awaiting}" class="mono" th:href="@{/runs/{p}(p=${a})}" th:text="${a}" style="display:block"></a></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(runs)}"><td colspan="4" class="muted">Nothing started yet.</td></tr>
+    </table>
+    <div th:if="${!#lists.isEmpty(errors)}"><h2>Errors</h2><pre th:each="e : ${errors}" th:text="${e}"></pre></div>
+</main>
+</body>
+</html>

@@ -8,9 +8,10 @@ A governed orchestration engine that takes a requirement through requirements, d
 
 | Part | State |
 | --- | --- |
-| Day 1: DAG engine, gates, retries, fallback, rollback, safe-stop, approvals, audit log, replay gateway | Built, with fake agents |
-| Day 2: real agents, policy rules, approval console, greenfield and brownfield scenarios | Not started |
-| Day 3: ambiguity handling, re-planning scenario, observability, evidence pack | Not started |
+| Day 1: DAG engine, gates, retries, fallback, rollback, safe-stop, approvals, audit log, replay gateway | Built, tested |
+| Day 2a: git workspaces per node, Maven and policy gates, YAML policy, Spring AI live gateway, agents, validated planner, approval console | Built, tested with scripted models |
+| Day 2b: real recordings of greenfield and brownfield, curated shortener, impact analysis | Not started |
+| Day 3: ambiguity scenario, observability, evidence pack, docs | Not started |
 
 This table is updated as work lands. Nothing below describes a feature that does not exist yet.
 
@@ -19,13 +20,25 @@ This table is updated as work lands. Nothing below describes a feature that does
 Prerequisite: Docker.
 
 ```bash
-docker compose run --rm demo     # Day-1 engine demo: fake agents, no LLM, no API key
+docker compose up console        # approval console on http://localhost:8080 (replay mode, no API key)
+docker compose run --rm smoke    # pipeline-smoke scenario in the terminal, approvals automatic and labelled
+docker compose run --rm demo     # engine demo: fake agents, no LLM
 docker compose run --rm test     # full test suite; output also written to build.log
 ```
 
 The first build downloads Maven dependencies and takes a few minutes.
 
 To run outside Docker: Java 21 and Maven 3.9, then `mvn verify`.
+
+**About the `pipeline-smoke` recording.** It was generated from scripted answers, not recorded from a model. It shows the orchestration machinery (planning, worktrees, gates, approvals, audit) end to end, not model quality. Real recordings of the greenfield and brownfield scenarios come with Day 2b.
+
+## How a scenario runs
+
+1. **Planning run.** The requirements agent turns the requirement into a spec with acceptance criteria and explicit ambiguities. The planner proposes a task DAG. A validator checks it: every criterion implemented and tested, tests independent of the code, a join before release. Invalid plans are repaired with the errors as feedback, then replaced by a template. A human approves the plan.
+2. **Execution run.** The approved plan is bound to executors and gates. Each node works in its own git worktree, starting from its dependencies' commits. Agents return structured edits; the tool layer applies them only inside the paths `policies/autonomy.yaml` allows and commits a real diff.
+3. **Gates decide.** Maven build and tests, protected paths, diff size, secrets, and a security scan. Migrations, build-file changes, new dependencies and disabled tests escalate to a human.
+4. **Integration repair.** If the merged code fails the independently written tests, the implementation is re-run with the failures as feedback (at most twice), then a human decides.
+5. **Release.** A human approves the release checklist and evidence. Every approval is bound to the exact output digest.
 
 ## What the Day-1 demo shows
 

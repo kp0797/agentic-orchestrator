@@ -1,0 +1,29 @@
+# Least-privilege write access per agent, enforced by the tool layer (not by prompts).
+# READ_ONLY agents only produce documents. EDIT agents change files inside their writable paths.
+agents:
+  requirements:
+    level: READ_ONLY
+  planner:
+    level: READ_ONLY
+  architect:
+    level: EDIT
+    writable:
+      - "docs/**"
+      - "src/main/resources/openapi/**"
+      - "src/main/java/**/api/**"
+      - "src/main/java/**/domain/**"
+  coder:
+    level: EDIT
+    writable:
+      - "src/main/**"
+      - "pom.xml"
+  tester:
+    # Writes tests only, from acceptance criteria and interfaces, never production code.
+    level: EDIT
+    writable:
+      - "src/test/**"
+  docs:
+    level: EDIT
+    writable:
+      - "README.md"
+      - "docs/**"
