@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: agentic-orchestrator
+  main:
+    banner-mode: off
+    web-application-type: none
+  # Day 1 keeps run state in memory. The 'postgres' profile turns on the JDBC event store.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
+logging:
+  level:
+    root: warn
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  autoconfigure:
+    exclude: []
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/agentic}
+    username: ${DB_USER:agentic}
+    password: ${DB_PASSWORD:agentic}

@@ -1,0 +1,38 @@
+# Everything runs in Docker; the only prerequisite is Docker itself.
+#   docker compose run --rm demo        Day-1 engine demo (fake agents, no API key)
+#   docker compose run --rm test        full unit test suite, output also saved to build.log
+#   docker compose run --rm test-docker adds Testcontainers tests (uses the host Docker socket)
+services:
+  demo:
+    build: .
+    command: ["fake-demo"]
+    volumes:
+      - ./runs:/app/runs
+
+  test:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    # Dependency cache lives in ./.m2 (gitignored) so it survives between runs and can be reused offline.
+    entrypoint: ["bash", "-c", "set -o pipefail; mvn -B -Dmaven.repo.local=/workspace/.m2/repository verify 2>&1 | tee build.log"]
+
+  test-docker:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    entrypoint: ["bash", "-c", "set -o pipefail; mvn -B -Dmaven.repo.local=/workspace/.m2/repository verify -Ddocker=true 2>&1 | tee build.log"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agentic
+      POSTGRES_USER: agentic
+      POSTGRES_PASSWORD: agentic
+    ports:
+      - "5432:5432"
+

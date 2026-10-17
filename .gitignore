@@ -1,0 +1,10 @@
+target/
+build.log
+runs/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+.env
+.trash/
+.m2/

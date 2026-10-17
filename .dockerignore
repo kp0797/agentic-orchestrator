@@ -1,0 +1,8 @@
+target/
+**/target/
+runs/
+build.log
+.git/
+.idea/
+.trash/
+.m2/
