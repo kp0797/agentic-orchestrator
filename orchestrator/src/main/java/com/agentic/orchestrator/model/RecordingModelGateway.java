@@ -26,7 +26,7 @@ public final class RecordingModelGateway implements ModelGateway {
     public ModelResponse complete(ModelRequest request) {
         ModelResponse r = delegate.complete(request);
         Cassette.Entry entry = new Cassette.Entry(request.key(), r.model(), request.promptHash(), r.text(),
-                r.inputTokens(), r.outputTokens());
+                r.inputTokens(), r.outputTokens(), r.truncated() ? "max_tokens" : "end_turn");
         cassette.add(entry);
         file.ifPresent(f -> JsonlCassetteFile.append(entry, f));
         return r;

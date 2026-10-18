@@ -79,7 +79,11 @@ public final class RunState {
             case NODE_OUTPUT_SEALED -> n.outputDigest = e.get("digest");
             case APPROVAL_GRANTED -> n.approvedDigest = e.get("digest");
             case APPROVAL_INVALIDATED -> n.approvedDigest = null;
-            case APPROVAL_REJECTED -> n.lastFailure = "rejected by " + e.get("approver") + ": " + e.get("feedback");
+            case APPROVAL_REJECTED -> {
+                n.lastFailure = "rejected by " + e.get("approver") + ": " + e.get("feedback");
+                n.reviewerFeedback = n.reviewerFeedback == null ? e.get("feedback")
+                        : n.reviewerFeedback + "\n" + e.get("feedback");
+            }
             case TOKENS_USED -> {
                 tokensUsed += Long.parseLong(e.get("tokens"));
                 costUsd += Double.parseDouble(e.get("costUsd"));

@@ -48,6 +48,7 @@ public class OrchestratorApplication {
                 case "fake-demo" -> new FakeDagDemo(System.out).runAll();
                 case "scenarios" -> runs.scenarios().forEach(s -> System.out.println(s.name() + "  " + s.description()));
                 case "run" -> runScenario(runs, rest);
+                case "ping-model" -> pingModel(runs);
                 default -> System.out.println("""
                         usage: orchestrator <command>
                           serve                       approval console on :8080
@@ -55,11 +56,23 @@ public class OrchestratorApplication {
                                                       run a scenario in the terminal; approvals are asked here,
                                                       or granted automatically and labelled as such
                           scenarios                   list scenarios
+                          ping-model                  one tiny live call (cheapest model) to check the API key
                           fake-demo                   engine demo with fake agents (no LLM)
                         mode (replay | live | record) comes from agentic.mode / AGENTIC_MODE
                         """);
             }
         };
+    }
+
+    /** Checks the key and the live gateway with the cheapest model before any expensive run. */
+    private static void pingModel(RunService runs) {
+        String model = runs.modelSettings().forAgent("docs").model();
+        var gateway = new com.agentic.orchestrator.model.live.SpringAiModelGateway(System.getenv("ANTHROPIC_API_KEY"));
+        var response = gateway.complete(new com.agentic.orchestrator.model.ModelRequest(model,
+                "Reply with exactly the word OK.", "Health check.", java.util.Map.of("maxTokens", "10")));
+        double cost = runs.modelSettings().cost(response.model(), response.inputTokens(), response.outputTokens());
+        System.out.printf("Model %s replied '%s' (%d input + %d output tokens, about $%.6f). The key works.%n",
+                response.model(), response.text().strip(), response.inputTokens(), response.outputTokens(), cost);
     }
 
     private static void runScenario(RunService runs, List<String> args) {

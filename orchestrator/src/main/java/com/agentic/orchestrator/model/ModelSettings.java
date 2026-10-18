@@ -10,8 +10,11 @@ import java.util.Map;
 public record ModelSettings(Map<String, AgentModel> agents, AgentModel fallbackDefault, List<String> fallbackChain,
                             Map<String, Price> prices) {
 
-    /** @param maxTokens output token cap per call */
-    public record AgentModel(String model, int maxTokens, double temperature) {}
+    /**
+     * @param maxTokens   output token cap per call
+     * @param temperature null means "not sent": current models reject the parameter
+     */
+    public record AgentModel(String model, int maxTokens, Double temperature) {}
 
     /** USD per million tokens. */
     public record Price(double inputPerMTok, double outputPerMTok) {}
@@ -40,11 +43,11 @@ public record ModelSettings(Map<String, AgentModel> agents, AgentModel fallbackD
      * List prices as of October 2026.
      */
     public static ModelSettings defaults() {
-        AgentModel opusPlan = new AgentModel("claude-opus-5-5", 8192, 0.0);
-        AgentModel opusEdit = new AgentModel("claude-opus-5-5", 16000, 0.0);
-        AgentModel sonnetSpec = new AgentModel("claude-sonnet-5-5", 8192, 0.0);
-        AgentModel sonnetEdit = new AgentModel("claude-sonnet-5-5", 16000, 0.0);
-        AgentModel haiku = new AgentModel("claude-haiku-5-5", 4096, 0.0);
+        AgentModel opusPlan = new AgentModel("claude-opus-5-5", 16000, null);
+        AgentModel opusEdit = new AgentModel("claude-opus-5-5", 32000, null);
+        AgentModel sonnetSpec = new AgentModel("claude-sonnet-5-5", 16000, null);
+        AgentModel sonnetEdit = new AgentModel("claude-sonnet-5-5", 32000, null);
+        AgentModel haiku = new AgentModel("claude-haiku-5-5", 8192, null);
         return new ModelSettings(
                 Map.of("planner", opusPlan, "architect", opusEdit, "coder", opusEdit,
                         "requirements", sonnetSpec, "tester", sonnetEdit, "docs", haiku),

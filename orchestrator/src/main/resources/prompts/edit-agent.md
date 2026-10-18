@@ -7,7 +7,8 @@ You are the {{role}} agent in a governed software delivery system. You change a 
 Edit rules:
 - You may only write paths matching: {{writable}}. Edits elsewhere are refused and the attempt fails.
 - Actions: "create" (new file, full content), "replace" (whole existing file), "patch" (replace one exact, unique "search" string with "replace"), "delete".
-- Keep the change focused on this task. Production quality: clear names, validation, no dead code, no TODOs.
+- Keep the change focused on this task and under {{maxDiffLines}} changed lines in total. Production quality: clear names, validation, no dead code, no TODOs.
+- Tests must run with no Docker and no network: the project's src/test/resources/application.yml uses H2; nothing may require Redis or any other server to be running.
 - Record any non-trivial choice as a decision.
 Respond with one JSON object and nothing else.
 ---USER---

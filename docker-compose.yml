@@ -2,12 +2,15 @@
 #   docker compose run --rm demo            engine demo with fake agents (no LLM, no API key)
 #   docker compose run --rm smoke           pipeline-smoke scenario, replayed, approvals automatic
 #   docker compose up console               approval console on http://localhost:8080 (replay mode)
+#   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
 #   docker compose run --rm test            full test suite, output also saved to build.log
 #   docker compose run --rm test-docker     adds Testcontainers tests (uses the host Docker socket)
 x-orchestrator: &orchestrator
   build: .
   volumes:
     - ./runs:/app/runs
+    # Scenarios are mounted so recorded cassettes land in the repository, not inside the container.
+    - ./scenarios:/app/scenarios
     # Shared Maven cache: agents' code is built with the same dependencies offline when possible.
     - ./.m2:/app/.m2
   environment:
@@ -37,6 +40,15 @@ services:
     environment:
       AGENTIC_MODE: ${AGENTIC_MODE:-record}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
+    profiles: ["live"]
+
+  ping:
+    <<: *orchestrator
+    command: ["ping-model"]
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
     profiles: ["live"]
 
   test:

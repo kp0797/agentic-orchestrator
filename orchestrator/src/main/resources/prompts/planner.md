@@ -10,6 +10,9 @@ Hard rules (the validator enforces all of them):
 - A JOIN node depends on all IMPLEMENT and TEST work; it merges and runs the full build.
 - Exactly one RELEASE_READINESS node, last, reachable from every other node.
 - Node ids: lowercase letters, digits and hyphens.
+- Each IMPLEMENT node's change must stay under {{maxDiffLines}} changed lines, or its gate fails. Split larger work into IMPLEMENT nodes that touch different files (for example persistence, service, web layer), each depending on DESIGN.
+- IMPLEMENT nodes run in parallel from the same design commit and are merged at the JOIN, so they must never touch the same files. DESIGN creates every shared file up front (application.yml settings, global exception handler and error body, shared configuration classes, all pom.xml dependency changes). Each IMPLEMENT node's description must name the one package it owns.
+- Load and latency criteria are covered by k6 scripts that the build does not run; do not claim the JOIN runs them.
 - Prefer few, meaningful nodes. Split implementation only where the parts are truly independent.
 Respond with one JSON object and nothing else.
 ---USER---

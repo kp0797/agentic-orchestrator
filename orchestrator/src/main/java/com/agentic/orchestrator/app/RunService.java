@@ -146,7 +146,7 @@ public final class RunService implements AutoCloseable {
         }
         Map<String, ModelSettings.AgentModel> agents = new HashMap<>();
         props.models().forEach((agent, m) -> agents.put(agent, new ModelSettings.AgentModel(m.model(),
-                Optional.ofNullable(m.maxTokens()).orElse(8192), Optional.ofNullable(m.temperature()).orElse(0.0))));
+                Optional.ofNullable(m.maxTokens()).orElse(8192), m.temperature())));
         Map<String, ModelSettings.Price> prices = new HashMap<>(defaults.prices());
         props.prices().forEach((model, p) -> prices.put(model, new ModelSettings.Price(p.inputPerMTok(), p.outputPerMTok())));
         return new ModelSettings(agents, defaults.fallbackDefault(), defaults.fallbackChain(), prices);

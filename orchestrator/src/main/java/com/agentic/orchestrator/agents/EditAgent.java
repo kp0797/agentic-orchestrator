@@ -78,6 +78,7 @@ public final class EditAgent implements NodeExecutor {
                 Map.entry("spec", run.spec().map(PlanningJson::write).orElse(run.requirement())),
                 Map.entry("fileList", bundle.fileList()),
                 Map.entry("files", bundle.contents()),
+                Map.entry("maxDiffLines", String.valueOf(policy.maxDiffLines())),
                 Map.entry("feedback", AgentSupport.feedback(ctx))));
         long tokens = c.response().totalTokens();
         EditResponse response;
@@ -146,11 +147,24 @@ public final class EditAgent implements NodeExecutor {
                 new Role("architect", "architect",
                         "Produce the design as files: docs/design.md (components, data model, key decisions), the "
                                 + "OpenAPI contract at src/main/resources/openapi/api.yaml, and Java interfaces, records "
-                                + "and exceptions in packages ending in .api and .domain. Contracts only, no "
-                                + "implementations. Everything you write must compile.",
-                        List.of("pom.xml", "src/main/resources/application.yml", "docs/**", "src/main/java/**")),
+                                + "and exceptions in packages ending in .api and .domain. Contracts only, with one "
+                                + "exception: you also create every shared file the parallel implementation tasks "
+                                + "would otherwise collide on (application.yml settings, the global exception "
+                                + "handler and error body under a .common package, configuration classes under a "
+                                + ".config package, and all pom.xml dependency changes); implementers cannot edit "
+                                + "those. In docs/design.md, assign each implementation task the package it owns, and "
+                                + "name every implementation class the coder "
+                                + "must create (fully qualified) and how to construct or inject it: tests are written "
+                                + "in parallel from your design and can only use the names you give. Everything you "
+                                + "write must compile. Keep it compact: signatures and records with one-line Javadoc, no "
+                                + "example code, and docs/design.md under 150 lines.",
+                        List.of("pom.xml", "src/main/resources/application.yml", "docs/**", "src/main/java/**",
+                        "src/main/resources/**")),
                 new Role("coder", "coder",
-                        "Implement the design under src/main. Do not change the interfaces' signatures; if the "
+                        "Implement the design under src/main/java, only in the package docs/design.md assigns "
+                                + "to your task (plus Flyway migrations if your task is a schema migration). Parallel "
+                                + "tasks are merged later, so never create or edit files outside your package. "
+                                + "Do not change the interfaces' signatures; if the "
                                 + "design is wrong, make the smallest compatible change and record a decision. Add "
                                 + "Flyway migrations under src/main/resources/db/migration when the data model needs "
                                 + "them. Do not write tests.",
@@ -159,8 +173,12 @@ public final class EditAgent implements NodeExecutor {
                 new Role("tester", "tester",
                         "Write JUnit 5 + AssertJ tests under src/test/java for the acceptance criteria, against "
                                 + "the interfaces and the API contract. You cannot see the implementation, and that is "
-                                + "deliberate. Name each test after the criterion it checks (for example ac1_...). "
-                                + "Tag tests that need Docker with @Tag(\"docker\").",
+                                + "deliberate: use the implementation class names given in docs/design.md. Name each "
+                                + "test after the criterion it checks (for example ac1_...). "
+                                + "Tag tests that need Docker with @Tag(\"docker\"). Criteria about throughput or "
+                                + "latency under load cannot be proven by unit tests: cover them with a k6 script in "
+                                + "src/test/k6/ and say so in its header comment; never write a unit test that "
+                                + "pretends to measure them.",
                         List.of("docs/**", "src/main/resources/openapi/**", "src/main/java/**/api/**",
                                 "src/main/java/**/domain/**", "src/test/**", "pom.xml")),
                 new Role("docs", "documentation",

@@ -406,7 +406,7 @@ public final class Engine {
                     .toList());
         }
         NodeContext ctx = new NodeContext(s.runId, node, attempt, executorKey, inputs,
-                Optional.ofNullable(rt.lastFailure()));
+                Optional.ofNullable(rt.feedbackForNextAttempt()));
         running.put(node.id(), completions.submit(() -> attempt(ctx)));
     }
 

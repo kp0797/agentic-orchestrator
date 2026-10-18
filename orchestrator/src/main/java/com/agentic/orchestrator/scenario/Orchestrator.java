@@ -81,7 +81,7 @@ public final class Orchestrator {
 
         ExecutorRegistry executors = new ExecutorRegistry()
                 .register(new RequirementsAgent(support))
-                .register(new PlannerAgent(support))
+                .register(new PlannerAgent(support, policy.maxDiffLines()))
                 .register(new PlannerAgent.Template(contexts))
                 .register(new DeterministicExecutors.Integrate(workspaces))
                 .register(new DeterministicExecutors.SecurityScanner(workspaces))

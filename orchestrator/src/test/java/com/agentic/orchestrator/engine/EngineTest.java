@@ -236,6 +236,24 @@ class EngineTest {
     }
 
     @Test
+    void reviewerFeedbackSurvivesLaterGateFailures() {
+        // attempt 1: approved candidate, rejected by a human; attempt 2: fails a gate; attempt 3 must
+        // still carry the human's feedback, not only the gate error.
+        ScriptedExecutor x = new ScriptedExecutor("x", ctx -> NodeResult.of(
+                ArtifactDraft.text("o", ctx.attempt() == 2 ? "" : "v" + ctx.attempt())));
+        Engine engine = builder(x).build();
+        String runId = engine.execute(plan(node("a").requiresApproval(true)), RunBudget.UNLIMITED).runId();
+        engine.decide(runId, "a", ApprovalDecision.reject("bob", engine.state(runId).node("a").outputDigest(),
+                "each node must own its package"));
+        engine.run(runId);
+
+        assertThat(x.calls).hasSize(3);
+        assertThat(x.calls.get(2).feedback()).get().asString()
+                .contains("each node must own its package")
+                .contains("outputs-present");
+    }
+
+    @Test
     void autoApproverIsLabelledInTheAuditLog() {
         Engine engine = builder(ScriptedExecutor.echo("x")).approvals(ApprovalHandler.autoApprove("ci")).build();
         RunOutcome o = engine.execute(plan(node("a").requiresApproval(true)), RunBudget.UNLIMITED);

@@ -25,13 +25,15 @@ agentic:
   maven-offline: ${AGENTIC_MVN_OFFLINE:false}
   max-parallel: 4
   # Model per agent. Changing one changes the request keys, so recorded cassettes must be re-recorded.
+  # Output caps include the model's thinking, so code-writing agents need generous caps.
+  # No temperature: current models reject the parameter. Add 'temperature: x' only for models that accept it.
   models:
-    requirements: { model: claude-sonnet-5-5, max-tokens: 8192, temperature: 0.0 }
-    planner:      { model: claude-opus-5-5,   max-tokens: 8192, temperature: 0.0 }
-    architect:    { model: claude-opus-5-5,   max-tokens: 16000, temperature: 0.0 }
-    coder:        { model: claude-opus-5-5,   max-tokens: 16000, temperature: 0.0 }
-    tester:       { model: claude-sonnet-5-5, max-tokens: 16000, temperature: 0.0 }
-    docs:         { model: claude-haiku-5-5,  max-tokens: 4096, temperature: 0.0 }
+    requirements: { model: claude-sonnet-5-5, max-tokens: 16000 }
+    planner:      { model: claude-opus-5-5,   max-tokens: 16000 }
+    architect:    { model: claude-opus-5-5,   max-tokens: 32000 }
+    coder:        { model: claude-opus-5-5,   max-tokens: 32000 }
+    tester:       { model: claude-sonnet-5-5, max-tokens: 32000 }
+    docs:         { model: claude-haiku-5-5,  max-tokens: 8192 }
   # USD per million tokens (input / output), list prices as of October 2026.
   prices:
     claude-haiku-5-5:  { input-per-m-tok: 0.10, output-per-m-tok: 0.50 }

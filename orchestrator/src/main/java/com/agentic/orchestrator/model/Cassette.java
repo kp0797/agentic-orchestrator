@@ -13,8 +13,14 @@ import java.util.Optional;
  * replay hands them out in recording order.
  */
 public final class Cassette {
+    /** @param stopReason the model's stop reason; "max_tokens" means the answer was cut off */
     public record Entry(String key, String model, String promptHash, String response, long inputTokens,
-                        long outputTokens) {}
+                        long outputTokens, String stopReason) {
+        public Entry(String key, String model, String promptHash, String response, long inputTokens,
+                     long outputTokens) {
+            this(key, model, promptHash, response, inputTokens, outputTokens, null);
+        }
+    }
 
     private final Map<String, List<Entry>> entries = new LinkedHashMap<>();
     private final Map<String, Integer> cursor = new LinkedHashMap<>();

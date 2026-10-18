@@ -6,17 +6,24 @@ agents:
   planner:
     level: READ_ONLY
   architect:
+    # Contracts, plus every shared file parallel implementers would otherwise collide on.
     level: EDIT
     writable:
       - "docs/**"
       - "src/main/resources/openapi/**"
+      - "src/main/resources/application.yml"
+      - "pom.xml"
       - "src/main/java/**/api/**"
       - "src/main/java/**/domain/**"
+      - "src/main/java/**/common/**"
+      - "src/main/java/**/config/**"
   coder:
+    # Code and migrations only. Shared files (application.yml, pom.xml) belong to the architect,
+    # so parallel implementation tasks cannot conflict on them at the join.
     level: EDIT
     writable:
-      - "src/main/**"
-      - "pom.xml"
+      - "src/main/java/**"
+      - "src/main/resources/db/migration/**"
   tester:
     # Writes tests only, from acceptance criteria and interfaces, never production code.
     level: EDIT

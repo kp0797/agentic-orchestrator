@@ -11,6 +11,7 @@ public final class ReplayModelGateway implements ModelGateway {
     @Override
     public ModelResponse complete(ModelRequest request) {
         Cassette.Entry e = cassette.next(request.key()).orElseThrow(() -> new CassetteMissException(request));
-        return new ModelResponse(e.response(), e.model(), e.inputTokens(), e.outputTokens());
+        return new ModelResponse(e.response(), e.model(), e.inputTokens(), e.outputTokens(),
+                "max_tokens".equals(e.stopReason()));
     }
 }

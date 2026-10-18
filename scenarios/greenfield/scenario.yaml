@@ -7,6 +7,10 @@ requirement: |
   - Show per-link click statistics: clicks per day and top referrers.
   - It must handle 1,000 redirects per second on one node and keep redirecting if the cache is down.
   - Reject unsafe URLs (only http and https; no private or loopback addresses).
+  Project constraints:
+  - The base package is com.agentic.shortener; ShortenerApplication already exists there. All code and tests live under it.
+  - Every acceptance criterion except load and latency targets is proven by tests that run in the default Maven build
+    with H2 and MockMvc, without Docker or network. Load targets are covered by k6 scripts the build does not run.
 template: templates/spring-boot-service
 cassette: cassette.jsonl
 budget:

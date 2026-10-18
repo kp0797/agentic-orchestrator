@@ -22,9 +22,11 @@ import java.util.Map;
 public final class PlannerAgent implements NodeExecutor {
     public static final String KEY = "planner";
     private final AgentSupport support;
+    private final int maxDiffLines;
 
-    public PlannerAgent(AgentSupport support) {
+    public PlannerAgent(AgentSupport support, int maxDiffLines) {
         this.support = support;
+        this.maxDiffLines = maxDiffLines;
     }
 
     @Override
@@ -37,6 +39,7 @@ public final class PlannerAgent implements NodeExecutor {
         RequirementSpec spec = specFromInputs(ctx, support.contexts());
         AgentSupport.Call c = support.call(KEY, "planner", Map.of(
                 "spec", PlanningJson.write(spec),
+                "maxDiffLines", String.valueOf(maxDiffLines),
                 "feedback", AgentSupport.feedback(ctx)));
         PlanProposal proposal;
         try {

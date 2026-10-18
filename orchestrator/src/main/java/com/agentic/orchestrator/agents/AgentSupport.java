@@ -31,12 +31,22 @@ public final class AgentSupport {
     public Call call(String agentKey, String promptName, Map<String, String> vars) {
         PromptLibrary.Rendered rendered = prompts.render(promptName, vars);
         ModelSettings.AgentModel m = settings.forAgent(agentKey);
-        ModelRequest request = new ModelRequest(m.model(), rendered.system(), rendered.user(), Map.of(
+        Map<String, String> params = new java.util.HashMap<>(Map.of(
                 "maxTokens", String.valueOf(m.maxTokens()),
-                "temperature", String.valueOf(m.temperature()),
                 "prompt", rendered.template().id()));
+        if (m.temperature() != null) {
+            params.put("temperature", String.valueOf(m.temperature()));
+        }
+        ModelRequest request = new ModelRequest(m.model(), rendered.system(), rendered.user(), params);
         ModelResponse response = gateway.complete(request);
         double cost = settings.cost(response.model(), response.inputTokens(), response.outputTokens());
+        if (response.truncated()) {
+            // Name the real problem: a cut-off answer would otherwise surface as "invalid JSON".
+            throw new com.agentic.orchestrator.engine.ExecutorFailure("the answer was cut off at the "
+                    + m.maxTokens() + "-token output limit (stop reason max_tokens). Return a smaller answer: "
+                    + "fewer and shorter files, minimal comments, and nothing outside the JSON object.",
+                    response.totalTokens(), cost, null);
+        }
         return new Call(response, response.model(), rendered.hash(), rendered.template().id(), cost);
     }
 
