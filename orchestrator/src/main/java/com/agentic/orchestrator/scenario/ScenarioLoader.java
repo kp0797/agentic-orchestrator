@@ -47,7 +47,7 @@ public final class ScenarioLoader {
                     String.valueOf(y.get("requirement")).strip(),
                     root.resolve(String.valueOf(y.get("template"))).normalize(),
                     scenarioDir.resolve(String.valueOf(y.getOrDefault("cassette", "cassette.jsonl"))),
-                    budget, faults);
+                    budget, faults, Boolean.TRUE.equals(y.get("regressionProof")));
         } catch (IOException e) {
             throw new UncheckedIOException("cannot read " + file, e);
         }

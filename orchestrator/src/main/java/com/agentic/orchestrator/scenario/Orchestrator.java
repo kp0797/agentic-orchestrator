@@ -1,6 +1,7 @@
 package com.agentic.orchestrator.scenario;
 
 import com.agentic.orchestrator.agents.AgentSupport;
+import com.agentic.orchestrator.agents.CodebaseAnalyzer;
 import com.agentic.orchestrator.agents.DeterministicExecutors;
 import com.agentic.orchestrator.agents.EditAgent;
 import com.agentic.orchestrator.agents.PlannerAgent;
@@ -29,6 +30,7 @@ import com.agentic.orchestrator.events.EventType;
 import com.agentic.orchestrator.gates.GateRegistry;
 import com.agentic.orchestrator.gates.MavenGate;
 import com.agentic.orchestrator.gates.NoSecretsGate;
+import com.agentic.orchestrator.gates.RegressionProof;
 import com.agentic.orchestrator.gates.OutputsPresentGate;
 import com.agentic.orchestrator.gates.SecurityScan;
 import com.agentic.orchestrator.gates.WorkspaceGates;
@@ -81,6 +83,7 @@ public final class Orchestrator {
 
         ExecutorRegistry executors = new ExecutorRegistry()
                 .register(new RequirementsAgent(support))
+                .register(new CodebaseAnalyzer(workspaces, contexts))
                 .register(new PlannerAgent(support, policy.maxDiffLines()))
                 .register(new PlannerAgent.Template(contexts))
                 .register(new DeterministicExecutors.Integrate(workspaces))
@@ -98,6 +101,8 @@ public final class Orchestrator {
                 .register(new WorkspaceGates.NewDependency(policy.licenseAllowlist()))
                 .register(new WorkspaceGates.DisabledTests())
                 .register(new WorkspaceGates.SecretsInDiff())
+                .register(new WorkspaceGates.MigrationsImmutable())
+                .register(new RegressionProof(settings.maven()))
                 .register(new SecurityScan.Gate())
                 .register(MavenGate.build(settings.maven()))
                 .register(MavenGate.tests(settings.maven()));
@@ -113,7 +118,7 @@ public final class Orchestrator {
                 .build();
     }
 
-    /** The fixed planning stage. Only the execution stage is planned by the model. */
+    /** The fixed planning stage: spec, codebase analysis, plan. Only the execution stage is planned by the model. */
     static Plan planningPlan() {
         RetryPolicy threeTries = RetryPolicy.attempts(3); // the first try plus two repairs
         return new Plan("planning", 1, List.of(
@@ -121,10 +126,16 @@ public final class Orchestrator {
                         .description("Normalize the requirement into a testable spec")
                         .exitGates(OutputsPresentGate.ID, NoSecretsGate.ID, PlanningGates.SpecValid.ID)
                         .retryPolicy(threeTries).build(),
+                // Deterministic: the same code and spec always give the same report, so one attempt.
+                TaskNode.builder("analyze-codebase", NodeType.ANALYSIS).executor(CodebaseAnalyzer.KEY)
+                        .description("Index the existing code and report what the requirement touches")
+                        .dependsOn("requirements")
+                        .exitGates(OutputsPresentGate.ID)
+                        .retryPolicy(RetryPolicy.NO_RETRY).build(),
                 TaskNode.builder("plan", NodeType.PLANNING).executor(PlannerAgent.KEY)
                         .fallbacks(PlannerAgent.Template.KEY)
                         .description("Propose the execution DAG; validated, then approved by a human")
-                        .dependsOn("requirements")
+                        .dependsOn("requirements", "analyze-codebase")
                         .exitGates(OutputsPresentGate.ID, PlanningGates.PlanValid.ID)
                         .requiresApproval(true).retryPolicy(threeTries).build()));
     }
@@ -172,8 +183,10 @@ public final class Orchestrator {
     private int repairRounds;
 
     /**
-     * When the merged code fails its tests, the tests are the specification: the implementation nodes
-     * are re-run with the failures as feedback. Bounded; after that a human decides.
+     * When the merged code fails, the failing gate decides who repairs it. Build or test failures: the
+     * tests are the specification, so the implementation nodes are re-run with the failures as feedback.
+     * A regression-proof failure: the tests do not demonstrate the defect, so the test nodes are re-run.
+     * Bounded; after that a human decides.
      */
     private Optional<String> repairAfterIntegrationFailure(RunOutcome outcome) {
         Plan plan = plans.load(executionRunId).plan();
@@ -183,22 +196,31 @@ public final class Orchestrator {
                 continue;
             }
             String failure = engine.state(executionRunId).node(id).lastFailure();
-            if (failure == null || !failure.contains("gate '" + MavenGate.TESTS + "'")
-                    && !failure.contains("gate '" + MavenGate.BUILD + "'")) {
+            if (failure == null) {
                 return Optional.empty();
             }
-            List<String> implementers = plan.topologicalOrder().stream()
-                    .filter(n -> plan.downstreamInclusive(n).contains(id))
-                    .filter(n -> plan.node(n).type() == NodeType.IMPLEMENT
-                            || plan.node(n).type() == NodeType.SCHEMA_MIGRATION)
-                    .toList();
-            for (String impl : implementers) {
-                engine.markStale(executionRunId, impl, "integration failed at '" + id + "' (repair round "
-                        + (repairRounds + 1) + " of " + MAX_REPAIR_ROUNDS + ")",
-                        "The merged code fails the independently written tests. The tests define the expected "
-                                + "behaviour; change the implementation, not the tests.\n" + failure);
+            boolean codeFailed = failure.contains("gate '" + MavenGate.TESTS + "'")
+                    || failure.contains("gate '" + MavenGate.BUILD + "'");
+            boolean testsProveNothing = failure.contains("gate '" + RegressionProof.ID + "'");
+            if (!codeFailed && !testsProveNothing) {
+                return Optional.empty();
             }
-            return implementers.isEmpty() ? Optional.empty() : Optional.of(id);
+            List<NodeType> repairTypes = codeFailed ? List.of(NodeType.IMPLEMENT, NodeType.SCHEMA_MIGRATION)
+                    : List.of(NodeType.TEST);
+            String instruction = codeFailed
+                    ? "The merged code fails the independently written tests. The tests define the expected "
+                    + "behaviour; change the implementation, not the tests.\n"
+                    : "The regression tests must fail on the original code and pass after the fix. Rewrite them "
+                    + "to reproduce the defect through the existing API.\n";
+            List<String> repairers = plan.topologicalOrder().stream()
+                    .filter(n -> plan.downstreamInclusive(n).contains(id))
+                    .filter(n -> repairTypes.contains(plan.node(n).type()))
+                    .toList();
+            for (String r : repairers) {
+                engine.markStale(executionRunId, r, "integration failed at '" + id + "' (repair round "
+                        + (repairRounds + 1) + " of " + MAX_REPAIR_ROUNDS + ")", instruction + failure);
+            }
+            return repairers.isEmpty() ? Optional.empty() : Optional.of(id);
         }
         return Optional.empty();
     }
@@ -207,7 +229,8 @@ public final class Orchestrator {
         String planHash = engine.state(planningRunId).node("plan").outputHashes().get(0);
         Artifact planArtifact = artifacts.get(planHash).orElseThrow();
         PlanProposal proposal = PlanningJson.parse(planArtifact.contentAsString(), PlanProposal.class);
-        Plan plan = PlanBinder.bind(scenario.name() + "-execution", proposal, RetryPolicy.attempts(3));
+        Plan plan = PlanBinder.bind(scenario.name() + "-execution", proposal, RetryPolicy.attempts(3),
+                scenario.regressionProof() ? List.of(RegressionProof.ID) : List.of());
         String runId = engine.submit(plan, scenario.budget());
         RunContext child = contexts.inherit(planningRunId, runId);
         child.plan(proposal);

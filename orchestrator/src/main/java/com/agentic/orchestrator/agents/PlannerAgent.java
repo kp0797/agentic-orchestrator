@@ -39,6 +39,7 @@ public final class PlannerAgent implements NodeExecutor {
         RequirementSpec spec = specFromInputs(ctx, support.contexts());
         AgentSupport.Call c = support.call(KEY, "planner", Map.of(
                 "spec", PlanningJson.write(spec),
+                "codebase", codebaseFromInputs(ctx),
                 "maxDiffLines", String.valueOf(maxDiffLines),
                 "feedback", AgentSupport.feedback(ctx)));
         PlanProposal proposal;
@@ -65,6 +66,18 @@ public final class PlannerAgent implements NodeExecutor {
             }
         }
         throw new IllegalStateException("planner has no requirement-spec.json input");
+    }
+
+    /** The impact report from the analysis node, if the plan depends on one. */
+    static String codebaseFromInputs(NodeContext ctx) {
+        for (List<Artifact> list : ctx.inputs().values()) {
+            for (Artifact a : list) {
+                if (a.name().equals(CodebaseAnalyzer.REPORT)) {
+                    return a.contentAsString();
+                }
+            }
+        }
+        return "(no codebase analysis)";
     }
 
     /** Deterministic fallback planner: always valid, and labelled as a fallback in the plan itself. */

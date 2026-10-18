@@ -19,7 +19,22 @@ public record ContextBundle(String fileList, String contents, List<String> inclu
                             int chars, int maxChars) {
 
     public static ContextBundle build(Path dir, List<String> allFiles, List<String> includeGlobs, int maxChars) {
+        return build(dir, allFiles, includeGlobs, List.of(), maxChars);
+    }
+
+    /**
+     * @param preferred files to include first (for example those an impact analysis put in scope); only
+     *                  those the role's globs allow, so a preference never widens what a role may see
+     */
+    public static ContextBundle build(Path dir, List<String> allFiles, List<String> includeGlobs,
+                                      List<String> preferred, int maxChars) {
         Set<String> ordered = new LinkedHashSet<>();
+        List<PathMatcher> visible = includeGlobs.stream().map(PathPermissions::matcher).toList();
+        for (String f : preferred) {
+            if (allFiles.contains(f) && visible.stream().anyMatch(m -> m.matches(Path.of(f)))) {
+                ordered.add(f);
+            }
+        }
         for (String glob : includeGlobs) {
             PathMatcher m = PathPermissions.matcher(glob);
             allFiles.stream().filter(f -> m.matches(Path.of(f))).sorted().forEach(ordered::add);

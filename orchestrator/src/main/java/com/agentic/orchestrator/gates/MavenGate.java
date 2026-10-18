@@ -63,36 +63,48 @@ public final class MavenGate implements Gate {
         if (!Files.exists(dir.resolve("pom.xml"))) {
             return GateResult.fail(id, "no pom.xml in workspace");
         }
+        Run run = run(settings, dir, goals);
+        if (run.error() != null) {
+            return GateResult.fail(id, run.error());
+        }
+        if (run.exitCode() == 0) {
+            return GateResult.pass(id, "mvn " + String.join(" ", goals) + " succeeded");
+        }
+        return GateResult.fail(id, "mvn " + String.join(" ", goals) + " failed:\n" + trim(run.output()));
+    }
+
+    /** The outcome of one Maven invocation; {@code error} is set when Maven could not run or timed out. */
+    public record Run(int exitCode, String output, String error) {}
+
+    /** Runs Maven with the given goals and arguments in a directory. Used by other gates too. */
+    public static Run run(Settings settings, Path dir, List<String> goalsAndArgs) {
         List<String> cmd = new ArrayList<>(List.of(settings.executable(), "-B", "-q", "-Dstyle.color=never"));
         if (settings.offline()) cmd.add("-o");
         if (settings.repoLocal() != null && !settings.repoLocal().isBlank()) {
             cmd.add("-Dmaven.repo.local=" + settings.repoLocal());
         }
-        cmd.addAll(goals);
+        cmd.addAll(goalsAndArgs);
         try {
-            Path log = Files.createTempFile("mvn-" + id, ".log");
+            Path log = Files.createTempFile("mvn-", ".log");
             Process p = new ProcessBuilder(cmd).directory(dir.toFile()).redirectErrorStream(true)
                     .redirectOutput(log.toFile()).start();
             if (!p.waitFor(settings.timeout().toSeconds(), TimeUnit.SECONDS)) {
                 p.destroyForcibly();
-                return GateResult.fail(id, "maven " + goals + " timed out after " + settings.timeout());
+                return new Run(-1, "", "maven " + goalsAndArgs + " timed out after " + settings.timeout());
             }
             String output = Files.readString(log, StandardCharsets.UTF_8);
             Files.deleteIfExists(log);
-            if (p.exitValue() == 0) {
-                return GateResult.pass(id, "mvn " + String.join(" ", goals) + " succeeded");
-            }
-            return GateResult.fail(id, "mvn " + String.join(" ", goals) + " failed:\n" + trim(output));
+            return new Run(p.exitValue(), output, null);
         } catch (IOException e) {
-            return GateResult.fail(id, "cannot run maven: " + e.getMessage());
+            return new Run(-1, "", "cannot run maven: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return GateResult.fail(id, "interrupted");
+            return new Run(-1, "", "interrupted");
         }
     }
 
     /** Keeps compiler errors and test failures, drops download noise and stack frames. */
-    static String trim(String output) {
+    public static String trim(String output) {
         List<String> keep = new ArrayList<>();
         for (String line : output.split("\n")) {
             String l = line.strip();

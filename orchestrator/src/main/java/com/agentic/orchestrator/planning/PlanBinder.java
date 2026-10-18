@@ -22,6 +22,11 @@ public final class PlanBinder {
     private PlanBinder() {}
 
     public static Plan bind(String planId, PlanProposal proposal, RetryPolicy retry) {
+        return bind(planId, proposal, retry, List.of());
+    }
+
+    /** @param extraJoinGates scenario-specific checks on the merged code, run after its tests pass */
+    public static Plan bind(String planId, PlanProposal proposal, RetryPolicy retry, List<String> extraJoinGates) {
         List<TaskNode> nodes = new ArrayList<>();
         for (PlanProposal.ProposedNode p : proposal.nodes()) {
             NodeType type = NodeType.valueOf(p.type());
@@ -34,7 +39,8 @@ public final class PlanBinder {
                     .retryPolicy(retry);
             String[] changeGates = {OutputsPresentGate.ID, WorkspaceGates.ProtectedPaths.ID,
                     WorkspaceGates.SecretsInDiff.ID, WorkspaceGates.DiffSize.ID, WorkspaceGates.ApprovalPaths.ID,
-                    WorkspaceGates.NewDependency.ID, WorkspaceGates.DisabledTests.ID};
+                    WorkspaceGates.NewDependency.ID, WorkspaceGates.DisabledTests.ID,
+                    WorkspaceGates.MigrationsImmutable.ID};
             switch (type) {
                 case DESIGN -> b.executor("architect").exitGates(concat(changeGates, WorkspaceGates.NonEmptyChange.ID,
                         MavenGate.BUILD));
@@ -44,8 +50,9 @@ public final class PlanBinder {
                 // merged with it. The JOIN gate is where they must compile and pass.
                 case TEST -> b.executor("tester").exitGates(concat(changeGates, WorkspaceGates.NonEmptyChange.ID));
                 // Deterministic steps: retrying would give the same answer, so they get one attempt.
-                case JOIN -> b.executor("integrate").retryPolicy(RetryPolicy.NO_RETRY).exitGates(
-                        OutputsPresentGate.ID, WorkspaceGates.ProtectedPaths.ID, MavenGate.BUILD, MavenGate.TESTS);
+                case JOIN -> b.executor("integrate").retryPolicy(RetryPolicy.NO_RETRY).exitGates(concat(new String[]{
+                        OutputsPresentGate.ID, WorkspaceGates.ProtectedPaths.ID, WorkspaceGates.MigrationsImmutable.ID,
+                        MavenGate.BUILD, MavenGate.TESTS}, extraJoinGates.toArray(String[]::new)));
                 case DOCS -> b.executor("docs").exitGates(concat(changeGates));
                 case SECURITY_SCAN -> b.executor("security-scan").retryPolicy(RetryPolicy.NO_RETRY)
                         .exitGates(OutputsPresentGate.ID, SecurityScan.Gate.ID);

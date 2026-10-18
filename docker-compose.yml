@@ -1,10 +1,12 @@
 # Everything runs in Docker; the only prerequisite is Docker itself.
 #   docker compose run --rm demo            engine demo with fake agents (no LLM, no API key)
 #   docker compose run --rm smoke           pipeline-smoke scenario, replayed, approvals automatic
+#   docker compose run --rm brownfield      fix a production bug in the existing shortener, replayed (about 5 min)
 #   docker compose up console               approval console on http://localhost:8080 (replay mode)
 #   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
 #   docker compose run --rm test            full test suite, output also saved to build.log
 #   docker compose run --rm test-docker     adds Testcontainers tests (uses the host Docker socket)
+#   docker compose run --rm test-scenarios  adds whole-scenario tests (slow: several full builds each)
 #   docker compose --profile shortener up shortener   the URL shortener on http://localhost:8081 (Postgres + Redis)
 x-orchestrator: &orchestrator
   build: .
@@ -25,6 +27,10 @@ services:
   smoke:
     <<: *orchestrator
     command: ["run", "pipeline-smoke", "--auto-approve"]
+
+  brownfield:
+    <<: *orchestrator
+    command: ["run", "brownfield", "--auto-approve"]
 
   console:
     <<: *orchestrator
@@ -69,6 +75,13 @@ services:
     environment:
       TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
     entrypoint: ["bash", "-c", "set -o pipefail; mvn -B -Dmaven.repo.local=/workspace/.m2/repository verify -Ddocker=true 2>&1 | tee build.log"]
+
+  test-scenarios:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    entrypoint: ["bash", "-c", "set -o pipefail; mvn -B -Dmaven.repo.local=/workspace/.m2/repository verify -Dscenarios=true 2>&1 | tee build.log"]
 
   postgres:
     image: postgres:16-alpine

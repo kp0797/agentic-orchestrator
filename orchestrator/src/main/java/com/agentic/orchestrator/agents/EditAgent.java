@@ -63,10 +63,10 @@ public final class EditAgent implements NodeExecutor {
         RunWorkspace.Worktree wt = ws.prepare(ctx.node().id(), baseCommits(ctx));
         workspaces.remember(ctx.runId(), wt);
         PathPermissions perms = new PathPermissions(autonomy.writable(), policy.protectedPaths());
-        ContextBundle bundle = ContextBundle.build(wt.directory(), ws.listFiles(wt.directory()), role.includeGlobs(),
-                MAX_CONTEXT_CHARS);
-
         RunContext run = support.contexts().get(ctx.runId());
+        ContextBundle bundle = ContextBundle.build(wt.directory(), ws.listFiles(wt.directory()), role.includeGlobs(),
+                run.impactedFiles(), MAX_CONTEXT_CHARS);
+
         AgentSupport.Call c = support.call(role.key(), "edit-agent", Map.ofEntries(
                 Map.entry("role", role.name()),
                 Map.entry("roleRules", role.rules()),
@@ -76,6 +76,7 @@ public final class EditAgent implements NodeExecutor {
                 Map.entry("description", ctx.node().description()),
                 Map.entry("criteria", String.join(", ", ctx.node().acceptanceCriteria())),
                 Map.entry("spec", run.spec().map(PlanningJson::write).orElse(run.requirement())),
+                Map.entry("codebase", run.codebase().isBlank() ? "(no analysis)" : run.codebase()),
                 Map.entry("fileList", bundle.fileList()),
                 Map.entry("files", bundle.contents()),
                 Map.entry("maxDiffLines", String.valueOf(policy.maxDiffLines())),

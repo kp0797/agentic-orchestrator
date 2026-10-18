@@ -100,7 +100,7 @@ class ScenarioEndToEndTest {
         assertThat(AuditVerifier.verify(log(execution)).valid()).isTrue();
         assertThat(log(execution)).anyMatch(e -> e.type() == EventType.DECISION_RECORDED && "Alphabet".equals(e.get("title")));
         // Every model call carried the versioned prompt id, and token usage was recorded.
-        assertThat(model.requests).allMatch(r -> r.params().get("prompt").contains("@v1"));
+        assertThat(model.requests).allMatch(r -> r.params().get("prompt").matches(".+@v\\d+"));
         assertThat(o.engine().state(execution).tokensUsed()).isPositive();
     }
 

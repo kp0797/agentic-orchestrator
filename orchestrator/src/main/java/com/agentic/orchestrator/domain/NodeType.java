@@ -3,6 +3,8 @@ package com.agentic.orchestrator.domain;
 /** The kinds of work a task node can represent. The planner may only use these. */
 public enum NodeType {
     REQUIREMENTS,
+    /** Deterministic analysis of the existing codebase (planning run only). */
+    ANALYSIS,
     /** Proposes the execution DAG (planning run only). */
     PLANNING,
     DESIGN,

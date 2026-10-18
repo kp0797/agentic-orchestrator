@@ -1,0 +1,20 @@
+name: brownfield
+description: >-
+  Fix a production defect in the existing shortener: concurrent requests for one alias created duplicate
+  rows. Starts from scenarios/templates/shortener-v1. Its cassette was generated from scripted answers,
+  not recorded from a model, and includes one deliberate agent mistake that a gate catches.
+requirement: |
+  Incident INC-2291: users intermittently get HTTP 500 when opening some short links that were created with
+  a custom alias, and the statistics for those links fail too. The links table contains several rows with
+  the same code. It happens when two people request the same alias at almost the same moment.
+  Fix the root cause so that an alias can only ever be taken once, even under concurrent requests (the loser
+  gets 409 Conflict); repair the duplicate rows already stored in production without breaking any other
+  link; and add a regression test that reproduces the race. Keep all existing behaviour and the API unchanged.
+template: templates/shortener-v1
+cassette: cassette.jsonl
+# The run's new tests must fail on the starting code: a regression test that passes before the fix proves nothing.
+regressionProof: true
+budget:
+  maxWallMinutes: 45
+  maxTokens: 2000000
+  maxCostUsd: 20

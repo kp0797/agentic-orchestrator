@@ -185,4 +185,31 @@ public final class WorkspaceGates {
                     : GateResult.fail(ID, r.detail().replace("'diff'", "the change"));
         }
     }
+
+    /**
+     * Flyway migrations in the baseline have already run in production: changing or deleting one makes
+     * every existing database disagree with the code. Schema changes must be a new version.
+     */
+    public static final class MigrationsImmutable implements Gate {
+        public static final String ID = "migrations-immutable";
+        static final List<String> GLOBS = List.of("**/db/migration/**");
+
+        public String id() { return ID; }
+
+        public GateResult evaluate(GateContext ctx) {
+            Optional<WorkspaceRef> ws = require(ctx);
+            if (ws.isEmpty()) return GateResult.fail(ID, "node produced no workspace change to check");
+            List<String> touched = matching(ws.get().changedFiles(), GLOBS);
+            if (touched.isEmpty()) {
+                return GateResult.pass(ID, "no migration changed");
+            }
+            Path dir = ws.get().directory();
+            String root = Git.rootCommit(dir);
+            List<String> applied = touched.stream()
+                    .filter(f -> Git.run(dir, "cat-file", "-e", root + ":" + f).ok()).toList();
+            return applied.isEmpty() ? GateResult.pass(ID, "only new migrations added: " + touched)
+                    : GateResult.fail(ID, "applied migrations were changed or deleted: " + applied
+                    + ". They have already run in production; revert them and add a new migration version instead.");
+        }
+    }
 }

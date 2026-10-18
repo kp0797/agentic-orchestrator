@@ -14,7 +14,7 @@ class PromptLibraryTest {
     void everyShippedPromptHasAVersionAndBothParts() {
         for (String name : new String[]{"requirements", "planner", "edit-agent"}) {
             PromptLibrary.Template t = prompts.load(name);
-            assertThat(t.version()).isEqualTo("v1");
+            assertThat(t.version()).matches("v\\d+");
             assertThat(t.system()).isNotBlank();
             assertThat(t.user()).isNotBlank();
         }

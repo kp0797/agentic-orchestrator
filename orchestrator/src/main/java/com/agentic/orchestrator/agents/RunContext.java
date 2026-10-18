@@ -14,6 +14,8 @@ public final class RunContext {
     private final String requirement;
     private volatile RequirementSpec spec;
     private volatile PlanProposal plan;
+    private volatile String codebase = "";
+    private volatile java.util.List<String> impactedFiles = java.util.List.of();
 
     public RunContext(String runId, String scenario, String requirement) {
         this.runId = runId;
@@ -28,6 +30,15 @@ public final class RunContext {
     public Optional<PlanProposal> plan() { return Optional.ofNullable(plan); }
     public void spec(RequirementSpec s) { this.spec = s; }
     public void plan(PlanProposal p) { this.plan = p; }
+
+    /** The impact analysis as text for prompts; empty until the analysis node has run. */
+    public String codebase() { return codebase; }
+    public java.util.List<String> impactedFiles() { return impactedFiles; }
+
+    public void codebase(String report, java.util.List<String> files) {
+        this.codebase = report == null ? "" : report;
+        this.impactedFiles = java.util.List.copyOf(files);
+    }
 
     /** Registry of contexts by run id. */
     public static final class Store {
@@ -56,6 +67,7 @@ public final class RunContext {
             RunContext child = new RunContext(childRunId, parent.scenario(), parent.requirement());
             parent.spec().ifPresent(child::spec);
             parent.plan().ifPresent(child::plan);
+            child.codebase(parent.codebase(), parent.impactedFiles());
             return put(child);
         }
     }

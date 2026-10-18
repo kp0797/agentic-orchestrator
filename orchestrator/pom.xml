@@ -115,8 +115,10 @@
                         <include>**/*Test.java</include>
                         <include>**/*Properties.java</include>
                     </includes>
-                    <!-- Tests that need a Docker daemon are tagged and skipped unless -Ddocker=true -->
-                    <excludedGroups>${excluded.groups}</excludedGroups>
+                    <!-- Tagged tests are skipped unless asked for: "docker" needs a Docker daemon
+                         (-Ddocker=true); "scenario" runs whole scenarios with several full Maven builds
+                         (-Dscenarios=true). -->
+                    <excludedGroups>${docker.group},${scenario.group}</excludedGroups>
                     <!-- End-to-end tests run real Maven builds in scratch workspaces; they reuse this
                          build's local repository so they work offline. -->
                     <systemPropertyVariables>
@@ -128,7 +130,8 @@
     </build>
 
     <properties>
-        <excluded.groups>docker</excluded.groups>
+        <docker.group>docker</docker.group>
+        <scenario.group>scenario</scenario.group>
     </properties>
 
     <profiles>
@@ -141,7 +144,19 @@
                 </property>
             </activation>
             <properties>
-                <excluded.groups/>
+                <docker.group>none</docker.group>
+            </properties>
+        </profile>
+        <profile>
+            <id>scenario-tests</id>
+            <activation>
+                <property>
+                    <name>scenarios</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <scenario.group>none</scenario.group>
             </properties>
         </profile>
     </profiles>

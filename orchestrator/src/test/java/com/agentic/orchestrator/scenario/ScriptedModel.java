@@ -39,9 +39,21 @@ final class ScriptedModel implements ModelGateway {
     public ModelResponse complete(ModelRequest request) {
         requests.add(request);
         String role = role(request);
-        int n = calls.computeIfAbsent(role, k -> new AtomicInteger()).incrementAndGet();
-        String text = answers.get(role).apply(n);
+        // Answers can be given per node ("coder:fix-alias-race"): parallel nodes of one role then get
+        // their own answers whatever order they run in.
+        String perNode = role + ":" + nodeId(request);
+        String key = answers.containsKey(perNode) ? perNode : role;
+        int n = calls.computeIfAbsent(key, k -> new AtomicInteger()).incrementAndGet();
+        if (!key.equals(role)) {
+            calls.computeIfAbsent(role, k -> new AtomicInteger()).incrementAndGet();
+        }
+        String text = answers.get(key).apply(n);
         return new ModelResponse(text, request.model(), request.prompt().length() / 4, text.length() / 4);
+    }
+
+    static String nodeId(ModelRequest r) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?m)^Task: ([a-z0-9-]+) \\(").matcher(r.prompt());
+        return m.find() ? m.group(1) : "";
     }
 
     int count(String role) {

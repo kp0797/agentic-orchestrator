@@ -57,8 +57,15 @@ public final class RunService implements AutoCloseable {
 
     /** Builds an orchestrator for a scenario; approvals come from the given handler. */
     public Orchestrator create(String scenarioName, ApprovalHandler approvals) {
+        return create(scenarioName, approvals, List.of());
+    }
+
+    /** @param extraFaults deliberate failures for this run only, recorded as injected in the audit log */
+    public Orchestrator create(String scenarioName, ApprovalHandler approvals,
+                               List<com.agentic.orchestrator.engine.FaultSpec> extraFaults) {
         Scenario scenario = scenarios().stream().filter(s -> s.name().equals(scenarioName)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("no scenario named " + scenarioName));
+                .orElseThrow(() -> new IllegalArgumentException("no scenario named " + scenarioName))
+                .withFaults(extraFaults);
         ModelGateway gateway = ModelGateways.create(props.mode(), scenario.cassette(),
                 () -> new SpringAiModelGateway(System.getenv("ANTHROPIC_API_KEY")));
         Orchestrator.Settings settings = new Orchestrator.Settings(

@@ -52,9 +52,10 @@ public class OrchestratorApplication {
                 default -> System.out.println("""
                         usage: orchestrator <command>
                           serve                       approval console on :8080
-                          run <scenario> [--auto-approve]
+                          run <scenario> [--auto-approve] [--inject <fault>]...
                                                       run a scenario in the terminal; approvals are asked here,
-                                                      or granted automatically and labelled as such
+                                                      or granted automatically and labelled as such.
+                                                      Faults: node:exception[@1,2] or node:gate:<gate-id>[@1]
                           scenarios                   list scenarios
                           ping-model                  one tiny live call (cheapest model) to check the API key
                           fake-demo                   engine demo with fake agents (no LLM)
@@ -80,13 +81,21 @@ public class OrchestratorApplication {
             throw new IllegalArgumentException("run needs a scenario name; see 'scenarios'");
         }
         boolean auto = args.contains("--auto-approve");
+        List<com.agentic.orchestrator.engine.FaultSpec> faults = new java.util.ArrayList<>();
+        for (int i = 0; i < args.size(); i++) {
+            if (args.get(i).equals("--inject")) {
+                if (i + 1 >= args.size()) throw new IllegalArgumentException("--inject needs a fault");
+                faults.add(com.agentic.orchestrator.engine.FaultSpec.parse(args.get(++i)));
+            }
+        }
         Orchestrator[] holder = new Orchestrator[1];
         ApprovalHandler approvals = auto ? ApprovalHandler.autoApprove("cli --auto-approve")
                 : new TerminalApprovals(() -> holder[0].artifacts(), System.out);
-        Orchestrator o = runs.create(args.get(0), approvals);
+        Orchestrator o = runs.create(args.get(0), approvals, faults);
         holder[0] = o;
         System.out.println("Scenario " + o.scenario().name() + " in " + runs.properties().mode() + " mode"
-                + (auto ? " (approvals automatic and labelled in the audit log)" : ""));
+                + (auto ? " (approvals automatic and labelled in the audit log)" : "")
+                + (faults.isEmpty() ? "" : "; injected faults: " + faults.size()));
         RunOutcome outcome = o.drive();
         for (String runId : List.of(o.planningRunId().orElse(""), o.executionRunId().orElse(""))) {
             if (runId.isEmpty()) continue;

@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: shortener
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/shortener}
+    username: ${DB_USER:shortener}
+    password: ${DB_PASSWORD:shortener}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # The cache is an optimisation: a slow Redis must not slow redirects down.
+      timeout: 100ms
+      connect-timeout: 200ms
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8081}
+  # Behind a reverse proxy, client IPs (for rate limiting) come from X-Forwarded-For.
+  forward-headers-strategy: ${FORWARD_HEADERS:none}
+
+shortener:
+  base-url: ${BASE_URL:http://localhost:8081}
+  code-length: 7
+  max-url-length: 2048
+  max-expiry-days: 365
+  cache:
+    type: ${CACHE_TYPE:redis}      # redis | none
+    ttl: 1h
+  rate-limit:
+    creates-per-minute: ${RATE_LIMIT:20}
+  clicks:
+    queue-capacity: 10000
+    batch-size: 500
+  retention:
+    click-days: 90
+    expired-link-days: 90
+    cron: "0 30 3 * * *"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
