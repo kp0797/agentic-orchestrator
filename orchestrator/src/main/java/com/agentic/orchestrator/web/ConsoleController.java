@@ -53,6 +53,13 @@ public class ConsoleController {
 
     public record ArtifactView(String name, String hash, String content, boolean truncated) {}
 
+    /** Prometheus scrape endpoint (text exposition format 0.0.4). */
+    @GetMapping(value = "/metrics", produces = "text/plain; version=0.0.4; charset=utf-8")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public String metrics() {
+        return runs.prometheusMetrics();
+    }
+
     @GetMapping("/")
     public String index(Model model) {
         model.addAttribute("mode", runs.properties().mode());

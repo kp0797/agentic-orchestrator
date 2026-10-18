@@ -144,6 +144,22 @@
     </properties>
 
     <profiles>
+        <!-- Prometheus metrics at /actuator/prometheus. On unless -Dno-prometheus is given (only for an
+             offline build machine that does not have the registry in its local repository). -->
+        <profile>
+            <id>prometheus</id>
+            <activation>
+                <property>
+                    <name>!no-prometheus</name>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.micrometer</groupId>
+                    <artifactId>micrometer-registry-prometheus</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
         <profile>
             <id>docker-tests</id>
             <activation>

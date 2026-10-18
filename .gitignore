@@ -8,3 +8,6 @@ runs/
 .env
 .trash/
 .m2/
+._*
+Thumbs.db
+desktop.ini

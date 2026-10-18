@@ -159,6 +159,17 @@ public final class RunService implements AutoCloseable {
         return List.copyOf(errors);
     }
 
+    /** Orchestrator metrics in Prometheus format, computed from the audit logs. */
+    public String prometheusMetrics() {
+        return new com.agentic.orchestrator.metrics.PrometheusExporter(events, runId -> {
+            try {
+                return Optional.of(plans.load(runId).plan());
+            } catch (RuntimeException e) {
+                return Optional.empty();
+            }
+        }).render();
+    }
+
     public EventStore events() {
         return events;
     }

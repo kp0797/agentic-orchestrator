@@ -26,7 +26,13 @@ shortener:
     expired-link-days: 90
     cron: "-"
 
+# This file replaces src/main/resources/application.yml in tests (same name on the classpath), so
+# anything production relies on, such as the exposed actuator endpoints, must be repeated here.
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
   health:
     redis:
       enabled: false

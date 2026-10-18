@@ -63,7 +63,7 @@ class BrownfieldTemplateTest {
         try (Stream<Path> s = Files.walk(root)) {
             for (Path p : s.filter(Files::isRegularFile).toList()) {
                 String rel = root.relativize(p).toString().replace('\\', '/');
-                if (!rel.startsWith("target/")) {
+                if (!rel.startsWith("target/") && !com.agentic.orchestrator.workspace.RunWorkspace.isOsMetadata(p)) {
                     out.put(rel, Files.readString(p));
                 }
             }

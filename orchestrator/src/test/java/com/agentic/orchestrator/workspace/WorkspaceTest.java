@@ -27,11 +27,13 @@ class WorkspaceTest {
         Files.writeString(template.resolve("src/main/App.java"), "class App { int v = 1; }\n");
         Files.createDirectories(template.resolve("target"));
         Files.writeString(template.resolve("target/junk.class"), "x");
+        Files.write(template.resolve(".DS_Store"), new byte[]{0, 0, 0, 1, (byte) 0xff});
+        Files.write(template.resolve("src/main/._App.java"), new byte[]{0, 5, 22, 7});
         ws = RunWorkspace.create(tmp.resolve("run"), template);
     }
 
     @Test
-    void templateIsCommittedWithoutBuildOutput() {
+    void templateIsCommittedWithoutBuildOutputOrOsMetadata() {
         assertThat(ws.listFiles(ws.repo())).containsExactlyInAnyOrder("pom.xml", "src/main/App.java");
     }
 

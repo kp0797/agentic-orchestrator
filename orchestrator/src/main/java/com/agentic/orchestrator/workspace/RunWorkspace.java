@@ -154,10 +154,23 @@ public final class RunWorkspace {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (isOsMetadata(file)) {
+                    return FileVisitResult.CONTINUE;
+                }
                 Files.copy(file, to.resolve(from.relativize(file).toString()), StandardCopyOption.REPLACE_EXISTING);
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    /**
+     * Files an operating system drops into folders (Finder, Explorer). They are not part of the project:
+     * copied into a workspace they would change what the agents see, and so every recorded prompt.
+     */
+    public static boolean isOsMetadata(Path file) {
+        String name = file.getFileName().toString();
+        return name.equals(".DS_Store") || name.startsWith("._") || name.equals("Thumbs.db")
+                || name.equalsIgnoreCase("desktop.ini");
     }
 
     /** Text of files a context bundle may include; skips build output and binaries. */

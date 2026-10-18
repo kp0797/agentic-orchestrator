@@ -1,0 +1,42 @@
+groups:
+  - name: orchestrator
+    rules:
+      - alert: AuditChainBroken
+        expr: agentic_audit_chains_broken > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "An audit log no longer verifies: evidence for that run cannot be trusted. Stop and investigate."
+      - alert: ApprovalWaitingTooLong
+        expr: agentic_approvals_pending > 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "A run has been waiting for a human decision for 30 minutes."
+      - alert: GateFailureRateHigh
+        expr: >
+          sum(rate(agentic_gate_evaluations_total{result="fail"}[30m]))
+            / clamp_min(sum(rate(agentic_gate_evaluations_total[30m])), 1e-9) > 0.2
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 20% of gate evaluations fail: agents or a recent prompt change may be regressing."
+  - name: shortener
+    rules:
+      - alert: ClicksDropped
+        expr: increase(shortener_clicks_dropped_total[5m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "The click queue was full and clicks were dropped: statistics are under-counting."
+      - alert: LinkCacheErrors
+        expr: rate(shortener_cache_requests_total{result="error"}[5m]) > 1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Redis errors: redirects are served from the database (degraded, not down)."
+      - alert: RedirectLatencyHigh
+        expr: >
+          histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{uri=~"/\\{code.*"}[5m])) by (le)) > 0.05
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "p99 redirect latency is above the 50 ms target."

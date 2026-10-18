@@ -4,6 +4,8 @@
 #   docker compose run --rm brownfield      fix a production bug in the existing shortener, replayed (about 5 min)
 #   docker compose run --rm ambiguous       unclear request: questions answered, scope changed mid-run, re-planned
 #   docker compose run --rm eval            all three scenarios 3 times each: reliability summary in runs/eval-*/
+#   docker compose --profile shortener --profile observability up console shortener prometheus
+#                                           metrics and alert rules on http://localhost:9090
 #   docker compose up console               approval console on http://localhost:8080 (replay mode)
 #   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
 #   docker compose run --rm test            full test suite, output also saved to build.log
@@ -75,6 +77,10 @@ services:
     working_dir: /workspace
     volumes:
       - .:/workspace
+      # Build output stays inside Docker: on a synced folder (iCloud Desktop, OneDrive) sync clients copy
+      # files while Maven writes them and leave unreadable "File 2.class" duplicates that break builds.
+      - orchestrator-target:/workspace/orchestrator/target
+      - shortener-target:/workspace/shortener/target
     # Dependency cache lives in ./.m2 (gitignored) so it survives between runs and can be reused offline.
     entrypoint: ["bash", "-c", "set -o pipefail; mvn -B -Dmaven.repo.local=/workspace/.m2/repository verify 2>&1 | tee build.log"]
 
@@ -83,6 +89,8 @@ services:
     working_dir: /workspace
     volumes:
       - .:/workspace
+      - orchestrator-target:/workspace/orchestrator/target
+      - shortener-target:/workspace/shortener/target
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
@@ -93,6 +101,8 @@ services:
     working_dir: /workspace
     volumes:
       - .:/workspace
+      - orchestrator-target:/workspace/orchestrator/target
+      - shortener-target:/workspace/shortener/target
     entrypoint: ["bash", "-c", "set -o pipefail; mvn -B -Dmaven.repo.local=/workspace/.m2/repository verify -Dscenarios=true 2>&1 | tee build.log"]
 
   postgres:
@@ -116,6 +126,8 @@ services:
       REDIS_HOST: redis
       BASE_URL: http://localhost:8081
       RATE_LIMIT: ${RATE_LIMIT:-20}
+      # Latency histograms for Prometheus (p99 redirect alert in ops/prometheus/alerts.yml).
+      MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS: "true"
     ports:
       - "8081:8081"
     depends_on:
@@ -140,3 +152,16 @@ services:
   redis:
     image: redis:7-alpine
     profiles: ["shortener"]
+
+  # --- Observability: Prometheus scraping the console (/metrics) and the shortener (/actuator/prometheus) ---
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./ops/prometheus:/etc/prometheus:ro
+    ports:
+      - "9090:9090"
+    profiles: ["observability"]
+
+volumes:
+  orchestrator-target:
+  shortener-target:
