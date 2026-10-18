@@ -4,14 +4,16 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Lightweight in-process secret check on text outputs. The real build adds gitleaks on the
- * workspace; this gate covers artifacts that never touch the file system (specs, plans, docs).
+ * Lightweight in-process secret check on text outputs, including artifacts that never touch the file
+ * system (specs, plans, docs). Changes to files are checked by secrets-in-diff and the security scan.
  */
 public final class NoSecretsGate implements Gate {
     public static final String ID = "no-secrets";
 
     private static final List<Pattern> PATTERNS = List.of(
             Pattern.compile("sk-ant-[A-Za-z0-9_-]{20,}"),
+            // OpenAI-style keys (sk-..., sk-proj-...), also used by many OpenAI-compatible services
+            Pattern.compile("(?<![A-Za-z0-9_-])sk-(?!ant-)[A-Za-z0-9_-]{32,}"),
             Pattern.compile("AKIA[0-9A-Z]{16}"),
             Pattern.compile("-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"),
             Pattern.compile("(?i)(password|secret|api[_-]?key)\\s*[:=]\\s*['\"][^'\"]{8,}['\"]"));

@@ -1,7 +1,7 @@
 # Ambiguous scenario: an unclear request, open questions, and a scope change mid-run
 
 ```bash
-docker compose run --rm ambiguous     # replay, unattended: the product owner's answers are scripted (about 4 min)
+docker compose run --rm ambiguous     # replay, unattended: the product owner's answers are scripted (about 1.5–3 min of run time)
 ```
 
 The request is deliberately vague: *"Link owners keep asking how many people actually visit their links,
@@ -12,7 +12,7 @@ decision. The system must not make it silently.
 
 | Step | Where | What you see |
 | --- | --- | --- |
-| 1 | `requirements` (planning) | The spec has one criterion and an open question: *how is a visitor identified? IPs are personal data*. Its confidence is LOW, so the `spec-valid` gate **escalates to a human**. Nothing is planned. |
+| 1 | `requirements` (planning) | The spec has one criterion and two open questions. One, *how is a visitor identified? IPs are personal data*, has LOW confidence, so the `spec-valid` gate **escalates to a human**; the other (unique per day or over the link's lifetime) is MEDIUM and does not. Nothing is planned. |
 | 2 | clarification | The product owner answers: no IPs or user agents, not even hashed with a fixed key; a salt that changes every UTC day and is never stored; per-day counts only. Recorded as `CLARIFICATION_RECORDED`; the requirements agent re-runs with the answer and adds the privacy criterion (AC2). |
 | 3 | `analyze-codebase`, `plan` | The real shortener is analyzed; plan **v1** (8 nodes) puts a design review first, because visitor identity is a privacy decision. |
 | 4 | `design` (execution, plan v1) | The ADR is written and goes to review. At the review, the product owner **changes scope**: marketing also needs unique visitors per referrer. |
@@ -28,8 +28,9 @@ In the approval console (`docker compose up console`), start `ambiguous`: no scr
 used there. Answer the open question with **Clarify or change scope** on the run page (or reject the
 requirements step with your answer); send a second clarification after the plan is approved to see a
 re-plan. In replay mode only the recorded answers can replay: different words are a cassette miss,
-because the agents' replies to them were never recorded. Use live mode (`AGENTIC_MODE=live` with an API
-key) to answer in your own words.
+because the agents' replies to them were never recorded. To answer in your own words, configure a
+provider (see [LLM_AND_RUNTIME.md](../../docs/LLM_AND_RUNTIME.md#choosing-a-provider-and-models)) and use
+`AGENTIC_MODE=live docker compose --profile live up console-live`.
 
 ## What is scripted
 
@@ -40,6 +41,8 @@ was built and tested against the real shortener before it was scripted. Everythi
 escalation, the clarification handling, superseding and compensation, re-planning, git, Maven builds
 and test runs, policy and approvals.
 
-`AmbiguousCassetteTest` checks the clarification path in the default build; `AmbiguousScenarioTest`
-(`-Dscenarios=true`) records and replays the whole run and regenerates the cassette with
-`-Dambiguous.cassette.out=scenarios/ambiguous/cassette.jsonl`.
+`AmbiguousCassetteTest` checks the clarification path (planning stage) in the default build;
+`CommittedCassettesReplayTest` (`-Dscenarios=true`) replays the whole committed cassette.
+`AmbiguousScenarioTest` (`-Dscenarios=true`) records and replays the whole run from the script and
+regenerates the cassette with `-Dambiguous.cassette.out=../scenarios/ambiguous/cassette.jsonl` (the path
+is relative to `orchestrator/`).

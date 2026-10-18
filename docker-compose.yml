@@ -1,13 +1,14 @@
 # Everything runs in Docker; the only prerequisite is Docker itself.
 #   docker compose run --rm demo            engine demo with fake agents (no LLM, no API key)
 #   docker compose run --rm smoke           pipeline-smoke scenario, replayed, approvals automatic
-#   docker compose run --rm brownfield      fix a production bug in the existing shortener, replayed (about 5 min)
+#   docker compose run --rm brownfield      fix a production bug in a released shortener, replayed (1–2 min of run time)
 #   docker compose run --rm ambiguous       unclear request: questions answered, scope changed mid-run, re-planned
 #   docker compose run --rm eval            all three scenarios 3 times each: reliability summary in runs/eval-*/
 #   docker compose --profile shortener --profile observability up console shortener prometheus
 #                                           metrics and alert rules on http://localhost:9090
 #   docker compose up console               approval console on http://localhost:8080 (replay mode)
-#   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
+#   docker compose --profile live run --rm ping   one tiny live call to check the provider, key and model
+#   docker compose --profile live run --rm eval-live   eval with real models (see docs/LLM_AND_RUNTIME.md)
 #   docker compose run --rm test            full test suite, output also saved to build.log
 #   docker compose run --rm test-docker     adds Testcontainers tests (uses the host Docker socket)
 #   docker compose run --rm test-scenarios  adds whole-scenario tests (slow: several full builds each)
@@ -26,6 +27,8 @@ x-orchestrator: &orchestrator
     AGENTIC_MODE: ${AGENTIC_MODE:-replay}
     # "postgres" keeps the audit log in the postgres service: SPRING_PROFILES_ACTIVE=postgres docker compose up postgres console
     SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+    # true: agents' Maven builds use only the cached ./.m2 (no downloads)
+    AGENTIC_MVN_OFFLINE: ${AGENTIC_MVN_OFFLINE:-false}
 
 services:
   demo:
@@ -54,24 +57,49 @@ services:
     ports:
       - "8080:8080"
 
-  # Live and record modes need a key; it is passed through from your shell and never stored.
+  # Live and record modes call the configured provider; see docs/LLM_AND_RUNTIME.md.
   console-live:
     <<: *orchestrator
     command: ["serve"]
     ports:
       - "8080:8080"
-    environment:
+    environment: &live-env
       AGENTIC_MODE: ${AGENTIC_MODE:-record}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      AGENTIC_MVN_OFFLINE: ${AGENTIC_MVN_OFFLINE:-false}
+      # Provider: anthropic (default) or openai-compatible (OpenAI, Ollama, vLLM, LM Studio, gateways).
+      AGENTIC_LLM_PROVIDER: ${AGENTIC_LLM_PROVIDER:-anthropic}
+      # A local server on your machine is http://host.docker.internal:<port>/v1 from inside Docker.
+      AGENTIC_LLM_BASE_URL: ${AGENTIC_LLM_BASE_URL:-}
+      AGENTIC_LLM_MODEL: ${AGENTIC_LLM_MODEL:-}
+      # Per-agent model ids; empty means the agent's default from application.yml.
+      AGENTIC_MODELS_REQUIREMENTS_MODEL: ${AGENTIC_MODELS_REQUIREMENTS_MODEL:-}
+      AGENTIC_MODELS_PLANNER_MODEL: ${AGENTIC_MODELS_PLANNER_MODEL:-}
+      AGENTIC_MODELS_ARCHITECT_MODEL: ${AGENTIC_MODELS_ARCHITECT_MODEL:-}
+      AGENTIC_MODELS_CODER_MODEL: ${AGENTIC_MODELS_CODER_MODEL:-}
+      AGENTIC_MODELS_TESTER_MODEL: ${AGENTIC_MODELS_TESTER_MODEL:-}
+      AGENTIC_MODELS_DOCS_MODEL: ${AGENTIC_MODELS_DOCS_MODEL:-}
+      AGENTIC_LLM_TOKEN_PARAM: ${AGENTIC_LLM_TOKEN_PARAM:-max_tokens}
+      # Keys are passed through from your shell and never stored.
+      AGENTIC_LLM_API_KEY: ${AGENTIC_LLM_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     profiles: ["live"]
 
   ping:
     <<: *orchestrator
     command: ["ping-model"]
+    environment: *live-env
+    profiles: ["live"]
+
+  # Reliability with real models: docker compose --profile live run --rm eval-live [eval <scenarios> --runs N]
+  eval-live:
+    <<: *orchestrator
+    command: ["eval", "pipeline-smoke", "--runs", "3"]
     environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
+      <<: *live-env
+      AGENTIC_MODE: live
     profiles: ["live"]
 
   test:
@@ -128,8 +156,9 @@ services:
       REDIS_HOST: redis
       BASE_URL: http://localhost:8081
       RATE_LIMIT: ${RATE_LIMIT:-20}
-      # Latency histograms for Prometheus (p99 redirect alert in ops/prometheus/alerts.yml).
-      MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS: "true"
+      # Latency histograms for Prometheus (p99 redirect alert in ops/prometheus/alerts.yml). Set as JSON
+      # because the property name has a dash that environment-variable names cannot express.
+      SPRING_APPLICATION_JSON: '{"management":{"metrics":{"distribution":{"percentiles-histogram":{"http.server.requests":true}}}}}'
     ports:
       - "8081:8081"
     depends_on:

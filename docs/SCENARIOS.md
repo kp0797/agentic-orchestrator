@@ -8,15 +8,13 @@ the greenfield scenario is for live recording.
 | `pipeline-smoke` | tiny Base62 library skeleton | the whole pipeline end to end, fast | yes, scripted cassette | `docker compose run --rm smoke` |
 | `brownfield` | the shortener with a planted production defect | codebase analysis, safe change to existing code, migration guardrail, regression proof, fault injection | yes, scripted cassette | `docker compose run --rm brownfield` |
 | `ambiguous` | the real shortener | escalated questions, clarification, mid-run scope change, superseding a plan, re-planning (plan v2) | yes, scripted cassette | `docker compose run --rm ambiguous` |
-| `greenfield` | empty Spring Boot skeleton | building the shortener from nothing with real models | no: live only | `AGENTIC_MODE=record docker compose --profile live up console-live` |
+| `greenfield` | empty Spring Boot skeleton | building the shortener from nothing with real models (any configured provider) | no: live only | `AGENTIC_MODE=record docker compose --profile live up console-live` |
 
 **About the cassettes.** The three replayable cassettes were generated from scripted answers written by
 hand, not recorded from a model, and each scenario's description says so. They demonstrate the
 orchestrator, the gates and the guardrails deterministically; they do not show model quality. Everything
 else in a replay is real: git worktrees and merges, Maven builds and test runs, policy, approvals, the
-audit log and the evidence. Live recording found seven real bugs (see
-[ENGINEERING_SUMMARY.md](ENGINEERING_SUMMARY.md)); a complete live recording of the greenfield scenario
-has not been made yet.
+audit log and the evidence. A complete live recording of the greenfield scenario has not been made yet.
 
 ## Where each capability is demonstrated
 
@@ -24,13 +22,13 @@ has not been made yet.
 | --- | --- |
 | Task DAG with dependencies | Every execution run; `PLAN_ACCEPTED` lists the topological order |
 | Entry and exit gates | Every node: `GATE_EVALUATED` events; entry policy decisions as `POLICY_EVALUATED` |
-| Parallel paths | brownfield: `migrate-unique-codes`, `fix-alias-race` and `regression-tests` start in the same millisecond |
+| Parallel paths | brownfield: `migrate-unique-codes`, `fix-alias-race` and `regression-tests` all depend only on the design and are started together, each in its own worktree |
 | Context and lineage | Every artifact's lineage in the evidence pack's `manifest.json`; `context-manifest.json` per edit attempt |
-| Human approvals | Plan, HIGH-risk migration and release approvals, digest-bound (`APPROVAL_REQUESTED` / `GRANTED`) |
-| Retries with feedback | brownfield: the migration's first attempt fails a gate and is retried with the reason |
+| Human approvals | Plan, HIGH-risk migration and release approvals, digest-bound (`APPROVAL_REQUESTED` / `GRANTED`); a person decides in the console, `--auto-approve` grants them automatically and labels them |
+| Retries with feedback | brownfield: the migration's first attempt fails a gate and is retried with the reason; `--inject` faults |
 | Fallback | `invalidPlansAreRepairedThenFallBackToTheTemplate` (planner → template planner); fake-agent demo |
 | Rollback and compensation | ambiguous: the superseded plan's design is compensated; fake-agent demo scenario 3 |
-| Safe-stop | console kill switch; budget breach (fake-agent demo scenario 2); `--inject` exception faults |
+| Safe-stop | console kill switch; budget breach (fake-agent demo scenario 2); a policy denial |
 | Policy guardrails | `migrations-immutable`, `protected-paths`, autonomy write paths, approval paths, risk floors |
 | Audit and observability | Hash-chained log, `verify-evidence`, `/metrics`, evidence packs |
 | Reliability metrics | Per-run metrics line; `eval` summary (success rate, retries, MTTR, p50/p95) |
@@ -43,23 +41,25 @@ has not been made yet.
 
 A tiny library ("encode numeric ids as short Base62 codes and back"), so the whole pipeline runs in about
 15 seconds: requirements, codebase analysis (empty project), plan, design, implementation and blind tests
-in parallel, integration with real Maven builds, docs, security scan, release. Used by the console's
-default demo and by the eval harness.
+in parallel, integration with real Maven builds, docs, security scan, release. The quickest scenario to
+start in the console; also used by the eval harness.
 
 ## brownfield
 
 Starts from `scenarios/templates/shortener-v1`: the shortener with one planted defect. Alias creation
 checks whether the alias exists and then inserts, and `links.code` has no unique constraint, so two
 concurrent requests store the same code and every later lookup of it fails with HTTP 500. The tests that
-would have caught it are absent. `BrownfieldTemplateTest` keeps the copy identical to `shortener/`
-otherwise. The requirement is an incident report.
+would have caught it are absent. `BrownfieldTemplateTest` keeps the copy identical to `shortener/` apart
+from the files that carry the defect, the README and those two tests. The requirement is an incident
+report.
 
 What happens: the codebase analysis names the alias path and says the next migration is V3; the plan
 runs an ADR, then the migration, the service fix and the regression tests in parallel. The migration
 agent's first answer edits the applied V1 migration (a deliberate scripted mistake) and the
 `migrations-immutable` gate rejects it; the retry adds V3, which repairs stored duplicates and adds the
-constraint, and a human approves it. At the JOIN the whole existing suite passes on the merged code and
-`regression-proof` shows the new tests fail on the original code (16 of 16 concurrent requests got 201).
+constraint, and it waits for approval (automatic and labelled with `--auto-approve`). At the JOIN the
+whole existing suite passes on the merged code and `regression-proof` shows the new tests fail on the
+original code (the alias is stored more than once).
 Details: [scenarios/brownfield/README.md](../scenarios/brownfield/README.md).
 
 Variant with an injected fault (also in the cassette):
@@ -85,11 +85,12 @@ scope**. In replay only the recorded answers can be replayed; use live mode to a
 
 Builds the shortener from an empty skeleton (`scenarios/templates/spring-boot-service`) with real
 models. The requirement states the project's constraints (base package, offline tests, k6 for load
-targets). It needs an API key:
+targets). It needs a configured provider; any supported one works (see
+[LLM_AND_RUNTIME.md](LLM_AND_RUNTIME.md#choosing-a-provider-and-models)):
 
 ```bash
-export ANTHROPIC_API_KEY=...                       # never written to a file or a log
-docker compose --profile live run --rm ping        # one tiny call (< $0.01) to check the key
+export AGENTIC_LLM_API_KEY=...                     # plus provider settings if not the default; never stored
+docker compose --profile live run --rm ping        # one tiny call to check provider, key and model
 AGENTIC_MODE=record docker compose --profile live up console-live
 ```
 
@@ -102,8 +103,16 @@ Any scenario: `run <scenario> --auto-approve --inject <fault>` (repeatable), or 
 
 | Fault | Effect |
 | --- | --- |
-| `node:exception[@1,2]` | the executor throws on those attempts |
+| `node:exception[@1,2]` | those attempts fail as if the executor had thrown (it is not called) |
 | `node:gate:<gate-id>[@1]` | that exit gate fails on those attempts even if the output is fine |
+
+In `scenario.yaml` the same faults are written as maps:
+
+```yaml
+faults:
+  - { node: fix-alias-race, kind: GATE_FAILURE, gate: build, attempts: [1] }
+  - { node: design, kind: EXCEPTION, attempts: [1, 2], message: "simulated outage" }
+```
 
 Injected faults are always recorded as `FAULT_INJECTED` and counted separately in the metrics. In replay
 mode a retry after a fault sends a different prompt (it carries the failure), so only variants recorded

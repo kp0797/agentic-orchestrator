@@ -10,7 +10,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class SpringAiModelGatewayTest {
+class AnthropicModelGatewayTest {
 
     /** Reproduces the live response that came back as empty text: thinking first, answer second. */
     @Test
@@ -19,7 +19,7 @@ class SpringAiModelGatewayTest {
                 new Generation(new AssistantMessage("", Map.of("signature", "sig"))),
                 new Generation(new AssistantMessage(null, Map.of("data", "redacted"))),
                 new Generation(new AssistantMessage("{\"title\": \"URL Shortener\"}", Map.of()))));
-        assertThat(SpringAiModelGateway.answerText(response)).isEqualTo("{\"title\": \"URL Shortener\"}");
+        assertThat(AnthropicModelGateway.answerText(response)).isEqualTo("{\"title\": \"URL Shortener\"}");
     }
 
     @Test
@@ -27,6 +27,6 @@ class SpringAiModelGatewayTest {
         ChatResponse response = new ChatResponse(List.of(
                 new Generation(new AssistantMessage("let me think {not json}", Map.of("signature", "s"))),
                 new Generation(new AssistantMessage("{\"ok\": true}", Map.of()))));
-        assertThat(SpringAiModelGateway.answerText(response)).isEqualTo("{\"ok\": true}");
+        assertThat(AnthropicModelGateway.answerText(response)).isEqualTo("{\"ok\": true}");
     }
 }

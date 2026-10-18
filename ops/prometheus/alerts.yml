@@ -35,8 +35,9 @@ groups:
           summary: "Redis errors: redirects are served from the database (degraded, not down)."
       - alert: RedirectLatencyHigh
         expr: >
-          histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{uri=~"/\\{code.*"}[5m])) by (le)) > 0.05
+          histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{uri=~"/\\{code:.*"}[5m])) by (le)) > 0.05
         for: 10m
         labels: { severity: warning }
         annotations:
+          # Needs the latency histogram the shortener service enables in docker-compose.yml.
           summary: "p99 redirect latency is above the 50 ms target."

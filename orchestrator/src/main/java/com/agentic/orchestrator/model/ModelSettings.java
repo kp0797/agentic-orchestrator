@@ -4,8 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Which model each agent uses and what it costs. Values come from configuration only; changing a
- * model changes every request key, so its cassettes must be re-recorded.
+ * Which model each agent uses and what it costs. Provider-neutral: a model is just an id the configured
+ * provider understands. Values come from configuration only; changing a model changes every request
+ * key, so its cassettes must be re-recorded. A model without a configured price is reported at $0.
  */
 public record ModelSettings(Map<String, AgentModel> agents, AgentModel fallbackDefault, List<String> fallbackChain,
                             Map<String, Price> prices) {
@@ -27,6 +28,19 @@ public record ModelSettings(Map<String, AgentModel> agents, AgentModel fallbackD
 
     public AgentModel forAgent(String agent) {
         return agents.getOrDefault(agent, fallbackDefault);
+    }
+
+    /** Every agent (and the default) uses one model id; output caps are kept. Prices are unchanged. */
+    public ModelSettings withEveryAgentUsing(String model) {
+        Map<String, AgentModel> replaced = new java.util.HashMap<>();
+        agents.forEach((agent, m) -> replaced.put(agent, new AgentModel(model, m.maxTokens(), m.temperature())));
+        AgentModel def = new AgentModel(model, fallbackDefault.maxTokens(), fallbackDefault.temperature());
+        return new ModelSettings(replaced, def, fallbackChain, prices);
+    }
+
+    /** Whether a price is configured for the model; without one, cost is reported as 0. */
+    public boolean hasPrice(String model) {
+        return prices.containsKey(model);
     }
 
     public double cost(String model, long inputTokens, long outputTokens) {

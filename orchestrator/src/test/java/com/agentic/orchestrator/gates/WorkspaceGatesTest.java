@@ -54,6 +54,13 @@ class WorkspaceGatesTest {
                 .contains("exceeds the limit of 100");
         assertThat(new WorkspaceGates.SecretsInDiff().evaluate(ctx(List.of("a"),
                 "+String apiKey = \"sk-ant-abcdefghijklmnopqrstuvwxyz0123\";\n", 1, 0)).passed()).isFalse();
+        // Fake, OpenAI-style: the check is provider-neutral.
+        assertThat(new WorkspaceGates.SecretsInDiff().evaluate(ctx(List.of("a"),
+                "+key: sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD\n", 1, 0)).passed()).isFalse();
+        assertThat(new WorkspaceGates.SecretsInDiff().evaluate(ctx(List.of("a"),
+                "+// see the docs for task-specific settings\n", 1, 0)).passed()).isTrue();
+        assertThat(new WorkspaceGates.SecretsInDiff().evaluate(ctx(List.of("a"),
+                "+String id = \"task-0123456789abcdef0123456789abcdef0123\";\n", 1, 0)).passed()).isTrue();
         assertThat(new WorkspaceGates.NonEmptyChange().evaluate(ctx(List.of(), "", 0, 0)).passed()).isFalse();
     }
 

@@ -13,7 +13,7 @@ public final class ModelGateways {
             case REPLAY -> {
                 if (!Files.exists(cassetteFile)) {
                     throw new IllegalStateException("no cassette at " + cassetteFile
-                            + ": record this scenario first (mode=record, needs ANTHROPIC_API_KEY)");
+                            + ": record this scenario first (mode=record, needs a model provider and its key)");
                 }
                 yield new ReplayModelGateway(JsonlCassetteFile.read(cassetteFile));
             }

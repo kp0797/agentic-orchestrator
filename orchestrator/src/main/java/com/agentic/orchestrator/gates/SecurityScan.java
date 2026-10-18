@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 
 /**
  * In-process static checks over the integrated source tree. It is deliberately small and honest:
- * a handful of high-signal rules. Semgrep and gitleaks run on top of this in the Docker image.
+ * a handful of high-signal rules. Dedicated scanners (Semgrep, gitleaks, a dependency CVE scan) are not
+ * part of this project yet.
  * Report lines are {@code SEVERITY|rule|file:line|detail}.
  */
 public final class SecurityScan {
@@ -21,6 +22,8 @@ public final class SecurityScan {
                     Pattern.compile("(?i)(password|secret|api[_-]?key|token)\\s*=\\s*\"[^\"]{8,}\""),
                     "credential literal in source"),
             new Rule("anthropic-key", "HIGH", Pattern.compile("sk-ant-[A-Za-z0-9_-]{20,}"), "API key in source"),
+            new Rule("openai-style-key", "HIGH", Pattern.compile("(?<![A-Za-z0-9_-])sk-(?!ant-)[A-Za-z0-9_-]{32,}"),
+                    "API key in source"),
             new Rule("private-key", "HIGH", Pattern.compile("-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"),
                     "private key in source"),
             new Rule("command-exec", "HIGH", Pattern.compile("Runtime\\.getRuntime\\(\\)\\.exec|new ProcessBuilder\\("),

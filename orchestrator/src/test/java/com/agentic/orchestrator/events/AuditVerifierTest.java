@@ -61,6 +61,24 @@ class AuditVerifierTest {
     }
 
     @Test
+    void detectsReorderedEvents() {
+        var events = new java.util.ArrayList<>(store.events("r1"));
+        java.util.Collections.swap(events, 1, 2);
+        assertThat(AuditVerifier.verify(events).valid()).isFalse();
+    }
+
+    /** Truncation keeps a valid chain: that is why the head hash is recorded outside the log. */
+    @Test
+    void truncationIsOnlyVisibleThroughTheHeadHash() {
+        var events = new java.util.ArrayList<>(store.events("r1"));
+        String head = AuditVerifier.verify(events).headHash();
+        events.remove(3);
+        AuditVerifier.Result truncated = AuditVerifier.verify(events);
+        assertThat(truncated.valid()).isTrue();
+        assertThat(truncated.headHash()).isNotEqualTo(head);
+    }
+
+    @Test
     void chainsAreIndependentPerRun() {
         store.append("r2", EventType.RUN_STARTED, null, Map.of(), t);
         assertThat(store.events("r2").get(0).prevHash()).isEqualTo(Event.GENESIS);

@@ -25,9 +25,17 @@ agentic:
   scenarios-dir: ${AGENTIC_SCENARIOS_DIR:scenarios}
   maven-offline: ${AGENTIC_MVN_OFFLINE:false}
   max-parallel: 4
-  # Model per agent. Changing one changes the request keys, so recorded cassettes must be re-recorded.
+  # Live provider (live and record modes only; replay never calls a model). Keys come from the environment
+  # only: AGENTIC_LLM_API_KEY, or ANTHROPIC_API_KEY / OPENAI_API_KEY.
+  llm:
+    provider: ${AGENTIC_LLM_PROVIDER:anthropic}        # anthropic | openai-compatible
+    base-url: ${AGENTIC_LLM_BASE_URL:}                 # openai-compatible: e.g. https://api.openai.com/v1, http://localhost:11434/v1
+    model: ${AGENTIC_LLM_MODEL:}                       # optional: one model id for every agent
+    token-param: ${AGENTIC_LLM_TOKEN_PARAM:max_tokens} # openai-compatible: max_tokens | max_completion_tokens
+  # Model per agent: ids the configured provider understands. These defaults are the ids the committed
+  # cassettes were made with. Changing one changes the request keys, so recorded cassettes must be re-recorded.
   # Output caps include the model's thinking, so code-writing agents need generous caps.
-  # No temperature: current models reject the parameter. Add 'temperature: x' only for models that accept it.
+  # No temperature by default: some models reject it. Add 'temperature: x' only for models that accept it.
   models:
     requirements: { model: claude-sonnet-5-5, max-tokens: 16000 }
     planner:      { model: claude-opus-5-5,   max-tokens: 16000 }
@@ -35,7 +43,8 @@ agentic:
     coder:        { model: claude-opus-5-5,   max-tokens: 32000 }
     tester:       { model: claude-sonnet-5-5, max-tokens: 32000 }
     docs:         { model: claude-haiku-5-5,  max-tokens: 8192 }
-  # USD per million tokens (input / output), list prices as of October 2026.
+  # USD per million tokens (input / output), list prices as of October 2026. Add an entry for any other
+  # model to have its cost reported and the cost budget enforced; without one its cost shows as $0.
   prices:
     claude-haiku-5-5:  { input-per-m-tok: 0.10, output-per-m-tok: 0.50 }
     claude-sonnet-5-5: { input-per-m-tok: 2.0,  output-per-m-tok: 10.0 }

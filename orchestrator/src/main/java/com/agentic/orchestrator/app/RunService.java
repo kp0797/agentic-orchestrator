@@ -13,7 +13,7 @@ import com.agentic.orchestrator.gates.MavenGate;
 import com.agentic.orchestrator.model.ModelGateway;
 import com.agentic.orchestrator.model.ModelGateways;
 import com.agentic.orchestrator.model.ModelSettings;
-import com.agentic.orchestrator.model.live.SpringAiModelGateway;
+import com.agentic.orchestrator.model.live.LiveGateways;
 import com.agentic.orchestrator.policy.PolicyLoader;
 import com.agentic.orchestrator.scenario.Orchestrator;
 import com.agentic.orchestrator.scenario.Scenario;
@@ -75,7 +75,7 @@ public final class RunService implements AutoCloseable {
                 .withFaults(extraFaults);
         Scenario scenario = scriptedStakeholder ? found : found.withoutScriptedStakeholder();
         ModelGateway gateway = ModelGateways.create(props.mode(), scenario.cassette(),
-                () -> new SpringAiModelGateway(System.getenv("ANTHROPIC_API_KEY")));
+                this::liveGateway);
         Orchestrator.Settings settings = new Orchestrator.Settings(
                 Path.of(props.runsDir()).toAbsolutePath(),
                 PolicyLoader.loadDirectory(Path.of(props.policiesDir())),
@@ -184,17 +184,28 @@ public final class RunService implements AutoCloseable {
         return props;
     }
 
+    /** The configured live provider; only built in live or record mode, or by ping-model. */
+    public ModelGateway liveGateway() {
+        AgenticProperties.Llm llm = props.llm();
+        return LiveGateways.create(llm.provider(), llm.baseUrl(), llm.tokenParam(), System.getenv());
+    }
+
     public ModelSettings modelSettings() {
         ModelSettings defaults = ModelSettings.defaults();
+        ModelSettings configured;
         if (props.models().isEmpty()) {
-            return defaults;
+            configured = defaults;
+        } else {
+            Map<String, ModelSettings.AgentModel> agents = new HashMap<>();
+            // A blank id (for example an empty AGENTIC_MODELS_<AGENT>_MODEL passed by Docker Compose) keeps the default.
+            props.models().forEach((agent, m) -> agents.put(agent, new ModelSettings.AgentModel(
+                    m.model() == null || m.model().isBlank() ? defaults.forAgent(agent).model() : m.model().strip(),
+                    Optional.ofNullable(m.maxTokens()).orElse(8192), m.temperature())));
+            Map<String, ModelSettings.Price> prices = new HashMap<>(defaults.prices());
+            props.prices().forEach((model, p) -> prices.put(model, new ModelSettings.Price(p.inputPerMTok(), p.outputPerMTok())));
+            configured = new ModelSettings(agents, defaults.fallbackDefault(), defaults.fallbackChain(), prices);
         }
-        Map<String, ModelSettings.AgentModel> agents = new HashMap<>();
-        props.models().forEach((agent, m) -> agents.put(agent, new ModelSettings.AgentModel(m.model(),
-                Optional.ofNullable(m.maxTokens()).orElse(8192), m.temperature())));
-        Map<String, ModelSettings.Price> prices = new HashMap<>(defaults.prices());
-        props.prices().forEach((model, p) -> prices.put(model, new ModelSettings.Price(p.inputPerMTok(), p.outputPerMTok())));
-        return new ModelSettings(agents, defaults.fallbackDefault(), defaults.fallbackChain(), prices);
+        return props.llm().model().isEmpty() ? configured : configured.withEveryAgentUsing(props.llm().model());
     }
 
     @Override

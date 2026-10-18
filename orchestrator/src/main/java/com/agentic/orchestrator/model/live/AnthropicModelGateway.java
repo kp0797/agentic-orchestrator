@@ -19,25 +19,22 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Live Anthropic calls through Spring AI. Built by hand rather than by autoconfiguration, so the
- * application never needs or reads an API key unless live or record mode is requested.
+ * Live calls to Anthropic's Messages API through Spring AI's Anthropic client (provider
+ * {@code anthropic}). Built by hand rather than by autoconfiguration, so the application never needs or
+ * reads an API key unless live or record mode is requested. {@link LiveGateways} chooses the provider.
  * Spring AI's own retries are kept to one extra attempt: the engine owns retry policy.
  */
-public final class SpringAiModelGateway implements ModelGateway {
+public final class AnthropicModelGateway implements ModelGateway {
     private final AnthropicChatModel chatModel;
-
-    public SpringAiModelGateway(String apiKey) {
-        this(apiKey, System.getenv("ANTHROPIC_WORKSPACE_ID"));
-    }
 
     /**
      * @param workspaceId only needed for keys not scoped to a workspace; a workspace-scoped key
      *                    (recommended, so the workspace spend cap applies) needs none
      */
-    public SpringAiModelGateway(String apiKey, String workspaceId) {
+    public AnthropicModelGateway(String apiKey, String workspaceId) {
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("ANTHROPIC_API_KEY is not set; live and record modes need it. "
-                    + "Replay mode does not.");
+            throw new IllegalStateException("no API key for provider 'anthropic': set AGENTIC_LLM_API_KEY "
+                    + "or ANTHROPIC_API_KEY. Live and record modes need it; replay mode does not.");
         }
         RestClient.Builder rest = RestClient.builder();
         if (workspaceId != null && !workspaceId.isBlank()) {

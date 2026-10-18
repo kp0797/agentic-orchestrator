@@ -70,7 +70,7 @@ public class OrchestratorApplication {
                                                       runs/eval-<time>/eval-summary.md and an evidence pack per run
                           verify-evidence <dir>       re-check the audit hash chains in an evidence pack
                           scenarios                   list scenarios
-                          ping-model                  one tiny live call (cheapest model) to check the API key
+                          ping-model                  one tiny live call to check the provider, key and model
                           fake-demo                   engine demo with fake agents (no LLM)
                         mode (replay | live | record) comes from agentic.mode / AGENTIC_MODE
                         """);
@@ -78,15 +78,17 @@ public class OrchestratorApplication {
         };
     }
 
-    /** Checks the key and the live gateway with the cheapest model before any expensive run. */
+    /** Checks the provider, key and model with one tiny call before any expensive run. */
     private static void pingModel(RunService runs) {
         String model = runs.modelSettings().forAgent("docs").model();
-        var gateway = new com.agentic.orchestrator.model.live.SpringAiModelGateway(System.getenv("ANTHROPIC_API_KEY"));
-        var response = gateway.complete(new com.agentic.orchestrator.model.ModelRequest(model,
+        var llm = runs.properties().llm();
+        var response = runs.liveGateway().complete(new com.agentic.orchestrator.model.ModelRequest(model,
                 "Reply with exactly the word OK.", "Health check.", java.util.Map.of("maxTokens", "10")));
-        double cost = runs.modelSettings().cost(response.model(), response.inputTokens(), response.outputTokens());
-        System.out.printf("Model %s replied '%s' (%d input + %d output tokens, about $%.6f). The key works.%n",
-                response.model(), response.text().strip(), response.inputTokens(), response.outputTokens(), cost);
+        String cost = runs.modelSettings().hasPrice(model)
+                ? String.format("about $%.6f", runs.modelSettings().cost(model, response.inputTokens(), response.outputTokens()))
+                : "no price configured for this model";
+        System.out.printf("Provider %s, model %s replied '%s' (%d input + %d output tokens, %s). It works.%n",
+                llm.provider(), model, response.text().strip(), response.inputTokens(), response.outputTokens(), cost);
     }
 
     private static void runScenario(RunService runs, List<String> args) {

@@ -48,6 +48,6 @@ Errors are RFC 9457 problem details with a stable `type` (`.../problems/alias-ta
 
 ## Tests
 
-`mvn -pl shortener verify` runs everything on H2 (PostgreSQL mode) with MockMvc and fake DNS: no
+`mvn verify` runs everything on H2 (PostgreSQL mode) with MockMvc and fake DNS: no
 Docker, no network. The load target (1,000 redirects/s) is checked with `load/redirects.js` (k6), which the
 build does not run.

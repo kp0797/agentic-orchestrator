@@ -1,9 +1,9 @@
 # URL shortener (v1)
 
-The service the orchestrator builds and changes. This module is the human-approved baseline:
-written with AI assistance, reviewed by a human (see `docs/ENGINEERING_SUMMARY.md`). The greenfield
-scenario rebuilds an equivalent service from an empty skeleton in a scratch workspace; the
-brownfield scenario changes this one.
+The service the orchestrator builds and changes. This module is the approved baseline. Scenarios never
+edit it; they work on copies in their own workspace. The ambiguous scenario starts from a copy of this
+module, the brownfield scenario from a copy with a planted defect (`scenarios/templates/shortener-v1`),
+and the greenfield scenario rebuilds an equivalent service from an empty skeleton.
 
 ## Run it
 
@@ -54,7 +54,7 @@ Errors are RFC 9457 problem details with a stable `type` (`.../problems/alias-ta
 
 ## Tests
 
-`mvn -pl shortener verify` runs everything on H2 (PostgreSQL mode) with MockMvc and fake DNS: no
+`mvn -pl shortener verify` (from the repository root) runs everything on H2 (PostgreSQL mode) with MockMvc and fake DNS: no
 Docker, no network. `-Ddocker=true` adds `PostgresRedisIntegrationTest` against real PostgreSQL 16
 and Redis 7. The load target (1,000 redirects/s) is checked with `load/redirects.js` (k6), which the
 build does not run.

@@ -53,12 +53,13 @@ public record EvalReport(String mode, List<ScenarioRunResult> runs) {
         StringBuilder sb = new StringBuilder("# Eval summary\n\n");
         sb.append("Mode: **").append(mode).append("**. ");
         sb.append("replay".equalsIgnoreCase(mode)
-                ? "Every run replays the same recorded model answers, so these numbers measure the orchestrator "
-                + "(determinism, gates, recovery paths, real builds and tests), not model quality. Run with "
-                + "AGENTIC_MODE=live to measure how reliably the models complete the same scenarios."
+                ? "Every run replays the same model answers from the scenario's cassette, so these numbers measure the orchestrator "
+                + "(determinism, gates, recovery paths, real builds and tests), not model quality. Run eval in live mode "
+                + "(docker compose --profile live run --rm eval-live) to measure how reliably the models complete "
+                + "the same scenarios."
                 : "Model answers were live, so success rate and retries include model variability.");
         sb.append("\n\n| Scenario | Runs | Success | Attempt success | Retries/run | Recoveries/run | Re-plans/run "
-                + "| Human decisions/run | MTTR | Wall p50 | Wall p95 | Mean cost |\n");
+                + "| Approval decisions/run | MTTR | Wall p50 | Wall p95 | Mean cost |\n");
         sb.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
         for (String s : scenarios()) {
             Aggregate a = aggregate(s);
