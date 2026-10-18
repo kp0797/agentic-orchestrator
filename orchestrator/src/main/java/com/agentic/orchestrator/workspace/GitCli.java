@@ -15,7 +15,10 @@ public final class GitCli {
     private GitCli() {}
 
     public static String run(Path dir, String... args) {
-        List<String> cmd = new ArrayList<>(List.of("git", "-c", "user.name=agentic-orchestrator",
+        // safe.directory: run repositories live on mounted volumes (Docker Desktop, CI), where their owner
+        // can differ from the process user and git would refuse them as "dubious ownership". The
+        // orchestrator only ever runs git in repositories it created itself.
+        List<String> cmd = new ArrayList<>(List.of("git", "-c", "safe.directory=*", "-c", "user.name=agentic-orchestrator",
                 "-c", "user.email=orchestrator@agentic.local", "-c", "commit.gpgsign=false",
                 "-c", "core.autocrlf=false"));
         cmd.addAll(List.of(args));

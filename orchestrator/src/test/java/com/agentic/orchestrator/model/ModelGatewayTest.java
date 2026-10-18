@@ -25,8 +25,12 @@ class ModelGatewayTest {
         JsonlCassetteFile.write(cassette, file);
         ModelGateway replay = new ReplayModelGateway(JsonlCassetteFile.read(file));
 
-        assertThat(replay.complete(req).text()).isEqualTo("answer 1");
+        ModelResponse first = replay.complete(req);
+        assertThat(first.text()).isEqualTo("answer 1");
         assertThat(replay.complete(req).text()).isEqualTo("answer 2");
+        // A replay calls no model: this run used no tokens and spent nothing, whatever the recording did.
+        assertThat(first.totalTokens()).isZero();
+        assertThat(cassette.all().get(0).inputTokens() + cassette.all().get(0).outputTokens()).isPositive();
     }
 
     @Test

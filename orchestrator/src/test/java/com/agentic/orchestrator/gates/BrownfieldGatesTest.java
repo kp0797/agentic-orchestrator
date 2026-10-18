@@ -55,7 +55,8 @@ class BrownfieldGatesTest {
         GateResult r = regressionProof();
 
         assertThat(r.passed()).as(r.detail()).isTrue();
-        assertThat(r.detail()).contains("fail on the original code");
+        assertThat(r.detail()).contains("fail on the original code").contains("AdderTest.adds:")
+                .doesNotContain("[ERROR]");
     }
 
     @Test

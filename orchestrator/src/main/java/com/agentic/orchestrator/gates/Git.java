@@ -18,7 +18,7 @@ final class Git {
     private Git() {}
 
     static Result run(Path dir, String... args) {
-        List<String> cmd = new ArrayList<>(List.of("git", "-c", "core.quotepath=off"));
+        List<String> cmd = new ArrayList<>(List.of("git", "-c", "safe.directory=*", "-c", "core.quotepath=off"));
         cmd.addAll(List.of(args));
         try {
             Process p = new ProcessBuilder(cmd).directory(dir.toFile()).redirectErrorStream(true).start();

@@ -82,8 +82,8 @@ public final class RegressionProof implements Gate {
                 return GateResult.fail(ID, "the new tests " + testClasses + " pass on the original code, so they do "
                         + "not reproduce the defect. Make them exercise the failure described in the requirement.");
             }
-            return GateResult.pass(ID, "the new tests fail on the original code, as a regression test must:\n"
-                    + MavenGate.trim(run.output()));
+            return GateResult.pass(ID, "the new tests fail on the original code, as a regression test must: "
+                    + failures(run.output()));
         } catch (IOException e) {
             return GateResult.fail(ID, "cannot prepare the baseline: " + e.getMessage());
         } catch (InterruptedException e) {
@@ -92,6 +92,25 @@ public final class RegressionProof implements Gate {
         } finally {
             delete(scratch);
         }
+    }
+
+    /** "AliasConcurrencyTest.ac1_race:47 (Expected size: 1 but was: 16)" for each failing test. */
+    static String failures(String mavenOutput) {
+        java.util.List<String> tests = new java.util.ArrayList<>();
+        java.util.List<String> reasons = new java.util.ArrayList<>();
+        java.util.regex.Matcher t = java.util.regex.Pattern.compile("(?m)^\\[ERROR\\]\\s{2,}(\\w+\\.\\w+:\\d+)")
+                .matcher(mavenOutput);
+        while (t.find()) {
+            tests.add(t.group(1));
+        }
+        for (String line : mavenOutput.split("\n")) {
+            String l = line.strip();
+            if ((l.startsWith("Expected") || l.startsWith("expected:") || l.contains("but was")) && reasons.size() < 3) {
+                reasons.add(l.length() > 120 ? l.substring(0, 120) + "..." : l);
+            }
+        }
+        String list = tests.isEmpty() ? "see the test reports" : String.join(", ", tests);
+        return list + (reasons.isEmpty() ? "" : " (" + String.join("; ", reasons) + ")");
     }
 
     private static void delete(Path dir) {

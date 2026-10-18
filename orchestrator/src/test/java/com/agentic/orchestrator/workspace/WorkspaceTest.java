@@ -116,4 +116,21 @@ class WorkspaceTest {
         RunWorkspace.Worktree again = ws.prepare("impl", List.of());
         assertThat(again.directory().resolve("src/main/Leftover.java")).doesNotExist();
     }
+
+    /**
+     * Run directories on a mounted volume (Docker Desktop on macOS) can be owned by another user than
+     * the process; git then refuses them as "dubious ownership". Found in the first Docker run of the
+     * brownfield scenario. Needs permission to change ownership (root, as in the Docker test container).
+     */
+    @Test
+    void worksInARepositoryOwnedByAnotherUser() throws Exception {
+        Process chown = new ProcessBuilder("chown", "-R", "65534", tmp.resolve("run").toString())
+                .redirectErrorStream(true).start();
+        org.junit.jupiter.api.Assumptions.assumeTrue(chown.waitFor() == 0, "cannot change file ownership here");
+
+        RunWorkspace.Worktree wt = ws.prepare("other-owner", List.of());
+        EditApplier.apply(wt.directory(), List.of(FileEdit.create("src/main/B.java", "class B {}\n")), coder);
+
+        assertThat(ws.commit(wt, "works despite ownership").changedFiles()).containsExactly("src/main/B.java");
+    }
 }

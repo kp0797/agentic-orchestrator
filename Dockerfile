@@ -22,6 +22,7 @@ ENTRYPOINT ["java", "-jar", "/app/shortener.jar"]
 # Maven and git, not just a JRE.
 FROM maven:3.9-eclipse-temurin-21
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
+    && git config --system --add safe.directory "*" \
     && useradd --system --uid 10001 --create-home agentic
 WORKDIR /app
 COPY --from=build /src/orchestrator/target/orchestrator-*.jar /app/app.jar
