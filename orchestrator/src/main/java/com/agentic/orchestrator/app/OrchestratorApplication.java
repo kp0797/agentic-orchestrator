@@ -32,9 +32,16 @@ public class OrchestratorApplication {
                 .run(args);
     }
 
+    /**
+     * The audit log goes to the database when one is configured (the 'postgres' profile, with Flyway
+     * creating the table); otherwise it is kept in memory for the life of the process.
+     */
     @Bean(destroyMethod = "close")
-    RunService runService(AgenticProperties props) {
-        return new RunService(props);
+    RunService runService(AgenticProperties props,
+                          org.springframework.beans.factory.ObjectProvider<javax.sql.DataSource> dataSource) {
+        javax.sql.DataSource ds = dataSource.getIfAvailable();
+        return new RunService(props, ds == null ? new com.agentic.orchestrator.events.InMemoryEventStore()
+                : new com.agentic.orchestrator.events.JdbcEventStore(ds));
     }
 
     @Bean

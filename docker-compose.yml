@@ -24,6 +24,8 @@ x-orchestrator: &orchestrator
     - ./.m2:/app/.m2
   environment:
     AGENTIC_MODE: ${AGENTIC_MODE:-replay}
+    # "postgres" keeps the audit log in the postgres service: SPRING_PROFILES_ACTIVE=postgres docker compose up postgres console
+    SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
 
 services:
   demo:

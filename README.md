@@ -1,65 +1,117 @@
 # Agentic SDLC Orchestrator
 
-A governed orchestration engine that takes a requirement through requirements, design, implementation, testing, documentation and release readiness, with LLM agents working inside hard limits. The URL shortener it builds is the test subject; the orchestrator is the product.
+A governed orchestration system that takes a software requirement through requirements, codebase
+analysis, planning, design, implementation, testing, integration, documentation, security scanning and
+release readiness. LLM agents do the work inside hard limits; deterministic gates, policy-as-code and
+humans decide what is accepted. A URL shortener is the system it builds and changes.
 
-> **Agents propose, gates dispose.** Agents generate output. Deterministic verifiers, policy-as-code and humans decide what is accepted.
+> **Agents propose, gates dispose.** No model ever decides whether a model's work is accepted.
 
-## Status
+## Try it in five minutes
 
-| Part | State |
-| --- | --- |
-| Day 1: DAG engine, gates, retries, fallback, rollback, safe-stop, approvals, audit log, replay gateway | Built, tested |
-| Day 2a: git workspaces per node, Maven and policy gates, YAML policy, Spring AI live gateway, agents, validated planner, approval console | Built, tested with scripted models |
-| Day 2b: real recordings of greenfield and brownfield, curated shortener, impact analysis | Not started |
-| Day 3: ambiguity scenario, observability, evidence pack, docs | Not started |
-
-This table is updated as work lands. Nothing below describes a feature that does not exist yet.
-
-## Quickstart
-
-Prerequisite: Docker.
+Prerequisite: Docker. No API key: everything below replays recorded answers offline.
 
 ```bash
-docker compose up console        # approval console on http://localhost:8080 (replay mode, no API key)
-docker compose run --rm smoke    # pipeline-smoke scenario in the terminal, approvals automatic and labelled
-docker compose run --rm demo     # engine demo: fake agents, no LLM
-docker compose run --rm test     # full test suite; output also written to build.log
+docker compose run --rm brownfield   # fix a production bug in the existing shortener (about 5 min)
+docker compose run --rm ambiguous    # unclear request: question escalated, scope changes mid-run, re-plan
+docker compose up console            # approval console on http://localhost:8080
+docker compose run --rm test         # 104 orchestrator + 105 shortener tests
 ```
 
-The first build downloads Maven dependencies and takes a few minutes.
+Each run prints its audit timeline, verifies the hash chain, prints reliability metrics and writes an
+**evidence pack** to `runs/<run>/evidence/`. The first build downloads Maven dependencies (a few minutes).
 
-To run outside Docker: Java 21 and Maven 3.9, then `mvn verify`.
+**What is scripted.** The replayable cassettes were generated from scripted model answers, not
+recorded from a model, and are labelled so. They show the orchestration deterministically. Everything
+else in a replay is real: git worktrees and merges, Maven builds and test runs of the whole service,
+gates, policy, approvals and the audit log. See [docs/LLM_AND_RUNTIME.md](docs/LLM_AND_RUNTIME.md).
 
-**About the `pipeline-smoke` recording.** It was generated from scripted answers, not recorded from a model. It shows the orchestration machinery (planning, worktrees, gates, approvals, audit) end to end, not model quality. Real recordings of the greenfield and brownfield scenarios come with Day 2b.
+## What it does
 
-## How a scenario runs
+```mermaid
+flowchart LR
+    R[requirement] --> Q[requirements<br/>questions escalate]
+    Q --> A[analyze-codebase<br/>impact report]
+    A --> P[plan<br/>validated]
+    P -->|human approves| D[design]
+    D --> I[implement]
+    D --> M[migrate]
+    D --> T[tests<br/>written blind]
+    I --> J[integrate<br/>full build and tests,<br/>regression proof]
+    M --> J
+    T --> J
+    J --> Doc[docs]
+    J --> S[security scan]
+    Doc --> Rel[release]
+    S --> Rel
+    Rel -->|human approves| Done((evidence pack))
+```
 
-1. **Planning run.** The requirements agent turns the requirement into a spec with acceptance criteria and explicit ambiguities. The planner proposes a task DAG. A validator checks it: every criterion implemented and tested, tests independent of the code, a join before release. Invalid plans are repaired with the errors as feedback, then replaced by a template. A human approves the plan.
-2. **Execution run.** The approved plan is bound to executors and gates. Each node works in its own git worktree, starting from its dependencies' commits. Agents return structured edits; the tool layer applies them only inside the paths `policies/autonomy.yaml` allows and commits a real diff.
-3. **Gates decide.** Maven build and tests, protected paths, diff size, secrets, and a security scan. Migrations, build-file changes, new dependencies and disabled tests escalate to a human.
-4. **Integration repair.** If the merged code fails the independently written tests, the implementation is re-run with the failures as feedback (at most twice), then a human decides.
-5. **Release.** A human approves the release checklist and evidence. Every approval is bound to the exact output digest.
+- **A DAG engine you can trust with failure.** One coordinator per run; entry and exit gates; parallel
+  nodes in their own git worktrees; retries with the failure as feedback; fallback executors;
+  compensation and rollback; safe-stop on a kill switch, budget or policy; crash resume from the log;
+  re-planning that reuses unaffected work.
+- **Gates, not opinions.** Compiler and tests, protected paths, diff size, secrets, applied migrations
+  are immutable, new tests must fail on the original code, an in-process security scan. Risky changes
+  (migrations, build files, new dependencies, disabled tests) escalate to a human.
+- **Humans where it matters.** Plan, migration and release approvals bound to the exact output digest;
+  low-confidence requirements escalate as questions; clarifications during execution supersede the
+  running plan and produce plan v2.
+- **Least privilege in code.** Each agent can write only its paths (`policies/autonomy.yaml`); the
+  tester never sees the implementation.
+- **Evidence.** Hash-chained audit log, artifact lineage (producer, inputs, model, prompt hash), evidence
+  packs that verify offline, run metrics, `/metrics` for Prometheus, and an eval harness for reliability
+  across runs.
 
-## What the Day-1 demo shows
+## The three scenarios
 
-An 8-node plan (requirements, design, implement and write-tests in parallel, integrate, docs and security-scan in parallel, release-readiness) runs with fake agents through three scenarios:
+| Scenario | What happens |
+| --- | --- |
+| **Greenfield** | `pipeline-smoke` builds a small library from nothing in about 15 s (replay); `greenfield` builds the shortener with real models (live, needs a key) |
+| **Brownfield** | An incident (duplicate aliases causing 500s) on the existing shortener: the analysis finds the alias path, the agent's first migration edits an applied migration and is rejected by a gate, the fix and a V3 migration pass the whole existing suite, and the new tests are proven to fail on the original code |
+| **Ambiguous** | "Show how many people visit": a privacy question escalates, the product owner answers, then changes scope at design review; the running plan is superseded and re-planned as v2 |
 
-1. **Retry, fallback, approvals, re-plan.** An injected compile error is retried with the error fed back. An injected gate failure exhausts the primary executor and falls back to a stronger one. Design and release pause for a human. Then the design is marked stale: design and everything after it re-run, requirements are reused, and old approvals are invalidated.
-2. **Safe-stop and resume.** A token budget stops the run. After the budget is raised, the run resumes from the audit log without redoing finished nodes.
-3. **Rollback.** An unrecoverable failure compensates every succeeded node, newest first.
+Capability-by-capability map: [docs/SCENARIOS.md](docs/SCENARIOS.md).
 
-Each scenario ends with the audit timeline, a hash-chain verification and reliability metrics computed from the log.
+## Measured
 
-## Engine design in brief
+Replay, 2 runs of each scenario on 2026-10-18 ([full table](docs/results/eval-replay-2026-10-18.md)):
 
-- **One coordinator per run** owns all state changes. Executors run in parallel on virtual threads and only return results.
-- **Event-sourced state.** Every decision is an event in a per-run, hash-chained log. State is rebuilt from the log, so a stopped or crashed run resumes exactly where it was.
-- **Gates are deterministic.** No LLM decides whether work passes. An ArchUnit test enforces that gates and policy cannot depend on the model package.
-- **Approvals are bound to output digests.** If the output changes, the approval no longer applies.
-- **Faults are injectable and always logged**, so the demo can show recovery without pretending a failure was real.
+| Scenario | Success | Retries/run | Re-plans/run | Human decisions/run | Wall p50 |
+| --- | --- | --- | --- | --- | --- |
+| pipeline-smoke | 100% | 0 | 0 | 2 | 14 s |
+| brownfield | 100% | 1 (the deliberate mistake, caught) | 0 | 3 | 78 s |
+| ambiguous | 100% | 1 | 1 | 6 | 65 s |
 
-See `docs/` (to be written on Day 3) for the full architecture, scenarios, testing approach and LLM usage.
+These measure the orchestrator, not model quality: replay answers are fixed. `docker compose run --rm eval`
+reproduces them on your machine.
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | Components, run lifecycle, engine mechanics, gates, policy, agents, workspaces, audit, key decisions |
+| [Scenarios](docs/SCENARIOS.md) | Each scenario, how to run it, where each capability is demonstrated, fault injection |
+| [Testing](docs/TESTING.md) | Test layers, coverage, drift guards, what is not covered |
+| [LLM and runtime](docs/LLM_AND_RUNTIME.md) | Where models are used, run modes, keys, cost, what is sent to a model |
+| [Runbook](docs/RUNBOOK.md) | Commands, operating the console, recording, alerts, troubleshooting |
+| [Engineering summary](docs/ENGINEERING_SUMMARY.md) | Status, AI-assistance disclosure, bugs found, limitations and trade-offs, next steps |
+| [Shortener](shortener/README.md) | The service: API, design decisions, limitations |
+
+## Repository
+
+```
+orchestrator/   the engine, agents, gates, policy, console and CLI (Java 21, Spring Boot 3.4, Spring AI)
+shortener/      the URL shortener v1 (Spring Boot, PostgreSQL, Redis)
+scenarios/      scenario definitions, cassettes and starting code
+policies/       policy-as-code: risk, approvals, protected paths, agent autonomy
+ops/            Prometheus scrape config and alert rules
+docs/           the documents above and measured results
+```
+
+Without Docker: Java 21 and Maven 3.9, then `mvn verify`.
 
 ## AI assistance
 
-This project is being built with Claude as a coding assistant. The author reviews every change. `ENGINEERING_SUMMARY.md` will record which parts were AI-assisted and what was changed after review.
+Built with Claude (Anthropic) as a coding assistant, under the author's direction and review; details in
+the [engineering summary](docs/ENGINEERING_SUMMARY.md#ai-assistance-disclosure).

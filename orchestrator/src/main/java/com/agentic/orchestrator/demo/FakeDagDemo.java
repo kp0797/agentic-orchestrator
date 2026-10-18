@@ -133,7 +133,7 @@ public final class FakeDagDemo {
             if (status.name().equals("AWAITING_APPROVAL")) {
                 String digest = engine.state(runId).node(id).outputDigest();
                 out.println("  [human] reviewing '" + id + "' output " + digest.substring(0, 12) + "... approved");
-                engine.decide(runId, id, ApprovalDecision.approve("kamakshya (demo reviewer)", digest,
+                engine.decide(runId, id, ApprovalDecision.approve("demo-reviewer", digest,
                         "reviewed in demo"));
             }
         });

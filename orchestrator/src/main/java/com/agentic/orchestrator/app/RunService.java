@@ -38,7 +38,7 @@ import java.util.concurrent.Executors;
  */
 public final class RunService implements AutoCloseable {
     private final AgenticProperties props;
-    private final EventStore events = new InMemoryEventStore();
+    private final EventStore events;
     private final ArtifactStore artifacts = new InMemoryArtifactStore();
     private final PlanStore plans = new PlanStore.InMemory();
     private final Map<String, Orchestrator> byRun = new ConcurrentHashMap<>();
@@ -47,7 +47,13 @@ public final class RunService implements AutoCloseable {
     private final ExecutorService background = Executors.newVirtualThreadPerTaskExecutor();
 
     public RunService(AgenticProperties props) {
+        this(props, new InMemoryEventStore());
+    }
+
+    /** @param events the audit log: in memory by default, PostgreSQL with the 'postgres' profile */
+    public RunService(AgenticProperties props, EventStore events) {
         this.props = props;
+        this.events = events;
     }
 
     public List<Scenario> scenarios() {

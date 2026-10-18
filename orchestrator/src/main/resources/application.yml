@@ -3,7 +3,8 @@ spring:
     name: agentic-orchestrator
   main:
     banner-mode: off
-  # Day 1 keeps run state in memory. The 'postgres' profile turns on the JDBC event store.
+  # By default the audit log is kept in memory. The 'postgres' profile stores it in PostgreSQL (Flyway creates
+  # the table); artifacts stay in memory and are written to each run's evidence pack.
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
