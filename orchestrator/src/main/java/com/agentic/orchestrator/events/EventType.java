@@ -28,5 +28,7 @@ public enum EventType {
     COMPENSATION_EXECUTED,
     COMPENSATION_FAILED,
     BUDGET_EXCEEDED,
+    /** A human (or a scripted stakeholder in an unattended demo) answered a question or changed scope. */
+    CLARIFICATION_RECORDED,
     BUDGET_UPDATED
 }

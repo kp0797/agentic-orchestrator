@@ -38,11 +38,14 @@ public final class EventPrinter {
                     + e.get("executor");
             case NODE_ATTEMPT_FAILED -> "attempt " + e.get("attempt") + ": " + e.get("reason");
             case GATE_EVALUATED -> e.get("gate") + " " + ("true".equals(e.get("passed")) ? "PASS" : "FAIL")
-                    + " - " + e.get("detail");
+                    + " - " + e.get("detail")
+                    + (e.get("escalation") == null ? "" : " -> ESCALATED to a human: " + e.get("escalation"));
             case APPROVAL_REQUESTED -> "digest " + e.get("digest").substring(0, 12) + " (risk " + e.get("risk") + ")";
             case APPROVAL_GRANTED -> "by " + e.get("approver") + " for digest " + e.get("digest").substring(0, 12);
             case APPROVAL_REJECTED -> "by " + e.get("approver") + ": " + e.get("feedback");
             case DECISION_RECORDED -> e.get("title") + " -> " + e.get("choice");
+            case CLARIFICATION_RECORDED -> "from " + e.get("from") + ("true".equals(e.get("scripted"))
+                    ? " (scripted stakeholder)" : "") + ": " + e.get("text");
             default -> e.data().isEmpty() ? "" : e.data().toString();
         };
     }

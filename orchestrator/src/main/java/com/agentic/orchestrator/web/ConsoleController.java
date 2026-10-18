@@ -175,6 +175,21 @@ public class ConsoleController {
         return "redirect:/runs/" + runId;
     }
 
+    /** Answers open questions or changes scope; once execution has started this re-plans (plan v2, v3...). */
+    @PostMapping("/runs/{runId}/clarify")
+    public String clarify(@PathVariable String runId, @RequestParam String from, @RequestParam String text,
+                          RedirectAttributes flash) {
+        if (from.isBlank() || text.isBlank()) {
+            flash.addFlashAttribute("flash", "A clarification needs your name and the text: both go into the audit log.");
+            return "redirect:/runs/" + runId;
+        }
+        runs.clarify(runId, from.strip(), text.strip());
+        flash.addFlashAttribute("flash", "Clarification recorded. Before execution it goes back to the requirements "
+                + "step; during execution the running plan is superseded and the work is re-planned.");
+        String planning = runs.orchestrator(runId).planningRunId().orElse(runId);
+        return "redirect:/runs/" + planning;
+    }
+
     @PostMapping("/runs/{runId}/resume")
     public String resume(@PathVariable String runId) {
         runs.resume(runId);

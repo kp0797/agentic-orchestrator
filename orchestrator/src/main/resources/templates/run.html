@@ -16,6 +16,16 @@
         <form method="post" th:action="@{/runs/{id}/stop(id=${runId})}"><button class="danger">Kill switch (safe-stop)</button></form>
         <form method="post" th:action="@{/runs/{id}/resume(id=${runId})}"><button>Resume</button></form>
     </div>
+    <details class="card" style="margin-top:12px">
+        <summary>Clarify or change scope</summary>
+        <p class="muted">Answer the agents' open questions, or change what is being built. During execution this
+            stops the running plan, rolls back its work and re-plans from the updated requirement.</p>
+        <form method="post" th:action="@{/runs/{id}/clarify(id=${runId})}">
+            <input name="from" placeholder="Your name or role" required>
+            <textarea name="text" rows="4" style="width:100%" placeholder="Your answer or change" required></textarea>
+            <button>Send clarification</button>
+        </form>
+    </details>
 
     <h2>Nodes</h2>
     <table>

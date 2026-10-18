@@ -227,6 +227,50 @@ public final class Engine {
         return undone;
     }
 
+    /**
+     * Records a clarification in the run's audit log. It changes no state by itself: the caller decides
+     * what it invalidates (see {@link #markStale(String, String, String, String)}).
+     *
+     * @param scripted true when it came from a scenario script rather than a person
+     */
+    public void recordClarification(String runId, String from, String text, boolean scripted) {
+        withSession(runId, s -> s.emit(EventType.CLARIFICATION_RECORDED, null, Map.of(
+                "from", from, "text", text, "scripted", String.valueOf(scripted))));
+    }
+
+    /**
+     * Ends a run that a newer plan replaces: finished work is compensated and rolled back (latest first),
+     * pending approvals are withdrawn, and nothing else will start. The run must not be in flight; stop it
+     * with {@link #requestStop} first.
+     */
+    public void supersede(String runId, String reason) {
+        RunControl ctl = control(runId);
+        synchronized (ctl) {
+            if (ctl.active) {
+                throw new IllegalStateException("run " + runId + " is still being driven; stop it first");
+            }
+        }
+        withSession(runId, s -> {
+            List<String> order = new ArrayList<>(s.plan.topologicalOrder());
+            java.util.Collections.reverse(order);
+            for (String id : order) {
+                NodeStatus st = s.state.node(id).status();
+                if (st == NodeStatus.SUCCEEDED) {
+                    compensate(s, s.plan.node(id), reason);
+                    s.transition(id, NodeStatus.ROLLED_BACK, reason);
+                } else if (st == NodeStatus.AWAITING_APPROVAL) {
+                    compensate(s, s.plan.node(id), reason);
+                    s.transition(id, NodeStatus.CANCELLED, reason + " (approval withdrawn)");
+                } else if (st == NodeStatus.PENDING) {
+                    s.transition(id, NodeStatus.CANCELLED, reason);
+                }
+            }
+            if (s.state.status() == RunStatus.RUNNING || s.state.status() == RunStatus.PAUSED_FOR_APPROVAL) {
+                s.emit(EventType.RUN_STOPPED, null, Map.of("reason", reason));
+            }
+        });
+    }
+
     /** Raises or lowers a run's limits, e.g. before resuming a run stopped for budget. */
     public void updateBudget(String runId, RunBudget budget) {
         withSession(runId, s -> {

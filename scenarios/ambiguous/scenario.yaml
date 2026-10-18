@@ -1,0 +1,28 @@
+name: ambiguous
+description: >-
+  An underspecified request ("show how many people visit"). The spec stops on a privacy question a
+  human must answer; a design review then changes scope mid-run, which supersedes the running plan and
+  re-plans (plan v2). Starts from the real shortener. Cassette and stakeholder messages are scripted.
+requirement: |
+  Link owners keep asking how many people actually visit their links, not just how many clicks there
+  are. Show that in the link statistics.
+template: ../shortener
+cassette: cassette.jsonl
+# Scripted human input for unattended runs (--auto-approve and tests). In the approval console a person
+# answers instead. Each message is recorded as a clarification and labelled as scripted.
+stakeholder:
+  - at: requirements
+    from: product-owner
+    message: |
+      Answers to your questions. (1) Do not store IP addresses or user agents, not even hashed with a fixed
+      key. Use a hash with a random salt that changes every UTC day and is never stored, so a visitor cannot
+      be followed across days. (2) Unique visitors per UTC day is what owners need; no lifetime count.
+  - at: design
+    from: product-owner
+    message: |
+      Design review: the direction is right. One addition from marketing before we build: the top
+      referrers list must also show unique visitors per referrer site, not only clicks.
+budget:
+  maxWallMinutes: 45
+  maxTokens: 2000000
+  maxCostUsd: 20

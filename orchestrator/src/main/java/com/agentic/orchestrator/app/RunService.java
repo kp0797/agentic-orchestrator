@@ -57,15 +57,17 @@ public final class RunService implements AutoCloseable {
 
     /** Builds an orchestrator for a scenario; approvals come from the given handler. */
     public Orchestrator create(String scenarioName, ApprovalHandler approvals) {
-        return create(scenarioName, approvals, List.of());
+        return create(scenarioName, approvals, List.of(), true);
     }
 
     /** @param extraFaults deliberate failures for this run only, recorded as injected in the audit log */
+    /** @param scriptedStakeholder apply the scenario's scripted human messages (unattended runs only) */
     public Orchestrator create(String scenarioName, ApprovalHandler approvals,
-                               List<com.agentic.orchestrator.engine.FaultSpec> extraFaults) {
-        Scenario scenario = scenarios().stream().filter(s -> s.name().equals(scenarioName)).findFirst()
+                               List<com.agentic.orchestrator.engine.FaultSpec> extraFaults, boolean scriptedStakeholder) {
+        Scenario found = scenarios().stream().filter(s -> s.name().equals(scenarioName)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("no scenario named " + scenarioName))
                 .withFaults(extraFaults);
+        Scenario scenario = scriptedStakeholder ? found : found.withoutScriptedStakeholder();
         ModelGateway gateway = ModelGateways.create(props.mode(), scenario.cassette(),
                 () -> new SpringAiModelGateway(System.getenv("ANTHROPIC_API_KEY")));
         Orchestrator.Settings settings = new Orchestrator.Settings(
@@ -83,7 +85,8 @@ public final class RunService implements AutoCloseable {
 
     /** Console entry point: starts in the background, humans approve in the browser. */
     public String start(String scenarioName) {
-        Orchestrator o = create(scenarioName, ApprovalHandler.MANUAL);
+        // A person is at the console: they answer questions themselves, no scripted stakeholder.
+        Orchestrator o = create(scenarioName, ApprovalHandler.MANUAL, List.of(), false);
         String runId = o.start();
         byRun.put(runId, o);
         continueInBackground(o);
@@ -94,6 +97,24 @@ public final class RunService implements AutoCloseable {
         Orchestrator o = orchestrator(runId);
         o.engine().decide(runId, nodeId, decision);
         continueInBackground(o);
+    }
+
+    /**
+     * A clarification from the console. Anything in flight is safe-stopped first; the clarification and
+     * the continued run happen in the background.
+     */
+    public void clarify(String runId, String from, String text) {
+        Orchestrator o = orchestrator(runId);
+        o.executionRunId().ifPresent(id -> o.engine().requestStop(id, "clarification received from " + from));
+        background.submit(() -> {
+            try {
+                o.clarify(from, text);
+                o.drive();
+                o.executionRunId().ifPresent(id -> byRun.put(id, o));
+            } catch (RuntimeException e) {
+                errors.add(o.scenario().name() + ": " + e.getMessage());
+            }
+        });
     }
 
     public void stop(String runId, String reason) {

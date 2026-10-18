@@ -91,15 +91,22 @@ public class OrchestratorApplication {
         Orchestrator[] holder = new Orchestrator[1];
         ApprovalHandler approvals = auto ? ApprovalHandler.autoApprove("cli --auto-approve")
                 : new TerminalApprovals(() -> holder[0].artifacts(), System.out);
-        Orchestrator o = runs.create(args.get(0), approvals, faults);
+        // Unattended (--auto-approve): the scenario's scripted stakeholder answers. Interactive: you do.
+        Orchestrator o = runs.create(args.get(0), approvals, faults, auto);
         holder[0] = o;
         System.out.println("Scenario " + o.scenario().name() + " in " + runs.properties().mode() + " mode"
                 + (auto ? " (approvals automatic and labelled in the audit log)" : "")
                 + (faults.isEmpty() ? "" : "; injected faults: " + faults.size()));
         RunOutcome outcome = o.drive();
-        for (String runId : List.of(o.planningRunId().orElse(""), o.executionRunId().orElse(""))) {
-            if (runId.isEmpty()) continue;
-            System.out.println("\n--- run " + runId + " ---");
+        List<String> shown = new java.util.ArrayList<>();
+        o.planningRunId().ifPresent(shown::add);
+        shown.addAll(o.supersededRuns());
+        o.executionRunId().ifPresent(shown::add);
+        for (String runId : shown) {
+            String role = o.planningRunId().filter(runId::equals).isPresent() ? "planning"
+                    : o.supersededRuns().contains(runId) ? "execution, superseded by a re-plan" : "execution";
+            System.out.println("\n--- run " + runId + " (" + role + ", plan v"
+                    + o.plans().load(runId).plan().version() + ") ---");
             EventPrinter.print(runs.events().events(runId), System.out, false);
             var audit = AuditVerifier.verify(runs.events().events(runId));
             System.out.println("Audit chain: " + (audit.valid() ? "VALID" : "BROKEN") + ", head "

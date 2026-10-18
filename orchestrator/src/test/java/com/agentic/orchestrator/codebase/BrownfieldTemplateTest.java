@@ -45,7 +45,7 @@ class BrownfieldTemplateTest {
                 assertThat(copy.get(f)).as("%s must match shortener/%s", f, f).isEqualTo(real.get(f));
             }
         }
-        assertThat(copy.keySet()).allMatch(f -> real.containsKey(f) || f.equals("pom.xml"));
+        assertThat(copy.keySet()).allMatch(real::containsKey);
     }
 
     @Test
@@ -63,7 +63,7 @@ class BrownfieldTemplateTest {
         try (Stream<Path> s = Files.walk(root)) {
             for (Path p : s.filter(Files::isRegularFile).toList()) {
                 String rel = root.relativize(p).toString().replace('\\', '/');
-                if (!rel.startsWith("target/") && !rel.equals("pom.xml")) {
+                if (!rel.startsWith("target/")) {
                     out.put(rel, Files.readString(p));
                 }
             }

@@ -28,6 +28,9 @@ WORKDIR /app
 COPY --from=build /src/orchestrator/target/orchestrator-*.jar /app/app.jar
 COPY policies /app/policies
 COPY scenarios /app/scenarios
+# Scenarios that change the real service start from its sources (template: ../shortener).
+COPY shortener/pom.xml shortener/README.md /app/shortener/
+COPY shortener/src /app/shortener/src
 RUN mkdir -p /app/runs /app/.m2 && chown -R agentic /app
 USER agentic
 ENV AGENTIC_MVN_REPO=/app/.m2/repository

@@ -111,7 +111,7 @@ public final class Orchestrator {
                 .events(events).artifacts(artifacts).plans(plans)
                 .executors(executors).gates(gates)
                 .policy(new YamlPolicyEngine(policy))
-                .approvals(approvals)
+                .approvals(stakeholderFirst(approvals))
                 .faults(new FaultInjector(scenario.faults()))
                 .options(settings.engineOptions())
                 .sleeper(settings.sleeper())
@@ -154,12 +154,25 @@ public final class Orchestrator {
 
     /**
      * Drives the scenario as far as it can go: to completion, a pause for a human, a safe-stop or a
-     * failure. Call again after an approval to continue.
+     * failure. Call again after an approval to continue. A scripted stakeholder message (unattended
+     * demos only) is applied as a clarification at the pause it belongs to, and driving continues.
      */
     public synchronized RunOutcome drive() {
         if (planningRunId == null) {
             start();
         }
+        while (true) {
+            RunOutcome outcome = driveOnce();
+            Optional<PendingMessage> message = Optional.ofNullable(pendingMessage);
+            pendingMessage = null;
+            if (message.isEmpty()) {
+                return outcome;
+            }
+            applyClarification(message.get().from(), message.get().text(), true, message.get().digest());
+        }
+    }
+
+    private RunOutcome driveOnce() {
         if (executionRunId == null) {
             RunOutcome planning = engine.run(planningRunId);
             if (planning.status() != RunStatus.SUCCEEDED) {
@@ -177,6 +190,80 @@ public final class Orchestrator {
             outcome = engine.run(executionRunId);
         }
         return outcome;
+    }
+
+    // ---- clarifications and re-planning ---------------------------------------------------------
+
+    private record PendingMessage(String from, String text, String digest) {}
+
+    private final java.util.Set<String> deliveredMessages = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final List<String> supersededRuns = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private volatile PendingMessage pendingMessage;
+
+    /** Scripted stakeholder messages intercept the approval they belong to; everything else goes to the human. */
+    private ApprovalHandler stakeholderFirst(ApprovalHandler human) {
+        return request -> {
+            for (Scenario.StakeholderMessage m : scenario.stakeholder()) {
+                String key = m.at() + "|" + m.message();
+                if (m.at().equals(request.node().id()) && deliveredMessages.add(key)) {
+                    pendingMessage = new PendingMessage(m.from(), m.message(), request.outputDigest());
+                    return Optional.empty(); // pause here; drive() applies the message
+                }
+            }
+            return human.onApprovalRequested(request);
+        };
+    }
+
+    /**
+     * A person answers open questions or changes scope. Before execution starts, the requirements step
+     * re-runs with the answer. Once execution has started, the plan was made without this information:
+     * the execution run is stopped and its finished work rolled back, the spec, the codebase analysis
+     * and the plan are redone (the plan needs approval again), and a new execution run follows.
+     * Call {@link #drive()} afterwards to continue.
+     */
+    public synchronized void clarify(String from, String text) {
+        String digest = null;
+        if (executionRunId == null && planningRunId != null) {
+            var req = engine.state(planningRunId).node("requirements");
+            if (req.status() == com.agentic.orchestrator.domain.NodeStatus.AWAITING_APPROVAL) {
+                digest = req.outputDigest();
+            }
+        }
+        applyClarification(from, text, false, digest);
+    }
+
+    private void applyClarification(String from, String text, boolean scripted, String requirementsDigest) {
+        if (planningRunId == null) {
+            throw new IllegalStateException("scenario has not started");
+        }
+        // The agents see what was said and by whom; whether a script said it is recorded in the audit log only.
+        String feedback = "Clarification from " + from + ":\n" + text;
+        engine.recordClarification(planningRunId, from, text, scripted);
+        if (executionRunId == null) {
+            var req = engine.state(planningRunId).node("requirements");
+            if (req.status() == com.agentic.orchestrator.domain.NodeStatus.AWAITING_APPROVAL
+                    && req.outputDigest().equals(requirementsDigest)) {
+                // The open questions were asked at this approval: the answer is the reviewer's feedback.
+                engine.decide(planningRunId, "requirements",
+                        com.agentic.orchestrator.engine.ApprovalDecision.reject(from, requirementsDigest, feedback));
+            } else {
+                engine.markStale(planningRunId, "requirements", "clarification from " + from, feedback);
+            }
+            return;
+        }
+        String superseded = executionRunId;
+        String reason = "superseded: re-planning after a clarification from " + from;
+        engine.recordClarification(superseded, from, text, scripted);
+        engine.supersede(superseded, reason);
+        supersededRuns.add(superseded);
+        executionRunId = null;
+        repairRounds = 0;
+        engine.markStale(planningRunId, "requirements", "clarification from " + from, feedback);
+    }
+
+    /** Execution runs replaced by a re-plan, oldest first. */
+    public List<String> supersededRuns() {
+        return List.copyOf(supersededRuns);
     }
 
     static final int MAX_REPAIR_ROUNDS = 2;
@@ -229,7 +316,8 @@ public final class Orchestrator {
         String planHash = engine.state(planningRunId).node("plan").outputHashes().get(0);
         Artifact planArtifact = artifacts.get(planHash).orElseThrow();
         PlanProposal proposal = PlanningJson.parse(planArtifact.contentAsString(), PlanProposal.class);
-        Plan plan = PlanBinder.bind(scenario.name() + "-execution", proposal, RetryPolicy.attempts(3),
+        Plan plan = PlanBinder.bind(scenario.name() + "-execution", supersededRuns.size() + 1, proposal,
+                RetryPolicy.attempts(3),
                 scenario.regressionProof() ? List.of(RegressionProof.ID) : List.of());
         String runId = engine.submit(plan, scenario.budget());
         RunContext child = contexts.inherit(planningRunId, runId);

@@ -40,6 +40,11 @@ public final class ScenarioLoader {
                         FaultSpec.Kind.valueOf(String.valueOf(f.getOrDefault("kind", "EXCEPTION"))),
                         attempts, (String) f.get("gate"), String.valueOf(f.getOrDefault("message", "injected"))));
             }
+            List<Scenario.StakeholderMessage> stakeholder = new ArrayList<>();
+            for (Map<String, Object> m : (List<Map<String, Object>>) y.getOrDefault("stakeholder", List.of())) {
+                stakeholder.add(new Scenario.StakeholderMessage(String.valueOf(m.get("at")),
+                        String.valueOf(m.getOrDefault("from", "stakeholder")), String.valueOf(m.get("message")).strip()));
+            }
             Path root = scenarioDir.getParent();
             return new Scenario(
                     String.valueOf(y.get("name")),
@@ -47,7 +52,7 @@ public final class ScenarioLoader {
                     String.valueOf(y.get("requirement")).strip(),
                     root.resolve(String.valueOf(y.get("template"))).normalize(),
                     scenarioDir.resolve(String.valueOf(y.getOrDefault("cassette", "cassette.jsonl"))),
-                    budget, faults, Boolean.TRUE.equals(y.get("regressionProof")));
+                    budget, faults, Boolean.TRUE.equals(y.get("regressionProof")), stakeholder);
         } catch (IOException e) {
             throw new UncheckedIOException("cannot read " + file, e);
         }

@@ -27,6 +27,12 @@ public final class PlanBinder {
 
     /** @param extraJoinGates scenario-specific checks on the merged code, run after its tests pass */
     public static Plan bind(String planId, PlanProposal proposal, RetryPolicy retry, List<String> extraJoinGates) {
+        return bind(planId, 1, proposal, retry, extraJoinGates);
+    }
+
+    /** @param version 2 and up after re-planning (a clarification changed the spec) */
+    public static Plan bind(String planId, int version, PlanProposal proposal, RetryPolicy retry,
+                            List<String> extraJoinGates) {
         List<TaskNode> nodes = new ArrayList<>();
         for (PlanProposal.ProposedNode p : proposal.nodes()) {
             NodeType type = NodeType.valueOf(p.type());
@@ -62,7 +68,7 @@ public final class PlanBinder {
             }
             nodes.add(b.build());
         }
-        return new Plan(planId, 1, nodes);
+        return new Plan(planId, version, nodes);
     }
 
     private static String[] concat(String[] base, String... more) {

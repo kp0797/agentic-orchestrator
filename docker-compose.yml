@@ -2,6 +2,7 @@
 #   docker compose run --rm demo            engine demo with fake agents (no LLM, no API key)
 #   docker compose run --rm smoke           pipeline-smoke scenario, replayed, approvals automatic
 #   docker compose run --rm brownfield      fix a production bug in the existing shortener, replayed (about 5 min)
+#   docker compose run --rm ambiguous       unclear request: questions answered, scope changed mid-run, re-planned
 #   docker compose up console               approval console on http://localhost:8080 (replay mode)
 #   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
 #   docker compose run --rm test            full test suite, output also saved to build.log
@@ -14,6 +15,8 @@ x-orchestrator: &orchestrator
     - ./runs:/app/runs
     # Scenarios are mounted so recorded cassettes land in the repository, not inside the container.
     - ./scenarios:/app/scenarios
+    # The real service, read-only: scenarios copy it into their own workspace and never change it here.
+    - ./shortener:/app/shortener:ro
     # Shared Maven cache: agents' code is built with the same dependencies offline when possible.
     - ./.m2:/app/.m2
   environment:
@@ -31,6 +34,10 @@ services:
   brownfield:
     <<: *orchestrator
     command: ["run", "brownfield", "--auto-approve"]
+
+  ambiguous:
+    <<: *orchestrator
+    command: ["run", "ambiguous", "--auto-approve"]
 
   console:
     <<: *orchestrator
