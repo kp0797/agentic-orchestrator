@@ -14,8 +14,10 @@
     <name>shortener</name>
     <description>URL shortener built and changed by the orchestrator's agents, approved by a human</description>
 
-    <!-- This module starts as a build skeleton only (this pom, an application class and a smoke
-         test). Everything else is produced by the greenfield scenario and reviewed before merge. -->
+    <!-- v1 of the service. Written with AI assistance and reviewed by a human; see
+         docs/ENGINEERING_SUMMARY.md. The greenfield scenario rebuilds an equivalent service from an
+         empty skeleton (scenarios/templates/spring-boot-service) in a scratch workspace; this module
+         is the human-approved baseline the brownfield scenario changes. -->
 
     <dependencies>
         <dependency>
@@ -32,7 +34,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

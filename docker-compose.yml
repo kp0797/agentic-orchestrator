@@ -5,6 +5,7 @@
 #   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
 #   docker compose run --rm test            full test suite, output also saved to build.log
 #   docker compose run --rm test-docker     adds Testcontainers tests (uses the host Docker socket)
+#   docker compose --profile shortener up shortener   the URL shortener on http://localhost:8081 (Postgres + Redis)
 x-orchestrator: &orchestrator
   build: .
   volumes:
@@ -77,3 +78,40 @@ services:
       POSTGRES_PASSWORD: agentic
     ports:
       - "5432:5432"
+
+  # --- The URL shortener (v1), with its own database and Redis ---
+  shortener:
+    build:
+      context: .
+      target: shortener
+    environment:
+      DB_URL: jdbc:postgresql://shortener-db:5432/shortener
+      DB_USER: shortener
+      DB_PASSWORD: shortener
+      REDIS_HOST: redis
+      BASE_URL: http://localhost:8081
+      RATE_LIMIT: ${RATE_LIMIT:-20}
+    ports:
+      - "8081:8081"
+    depends_on:
+      shortener-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    profiles: ["shortener"]
+
+  shortener-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: shortener
+      POSTGRES_USER: shortener
+      POSTGRES_PASSWORD: shortener
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shortener"]
+      interval: 2s
+      retries: 15
+    profiles: ["shortener"]
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["shortener"]

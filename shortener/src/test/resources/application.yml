@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:shortener;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  threads:
+    virtual:
+      enabled: true
+
+shortener:
+  base-url: http://sho.rt
+  code-length: 7
+  max-url-length: 2048
+  max-expiry-days: 365
+  cache:
+    type: none
+    ttl: 1h
+  rate-limit:
+    # Tests share one application context; RateLimitTest sets the real limit in its own context.
+    creates-per-minute: 100000
+  clicks:
+    queue-capacity: 10000
+    batch-size: 500
+  retention:
+    click-days: 90
+    expired-link-days: 90
+    cron: "-"
+
+management:
+  health:
+    redis:
+      enabled: false
