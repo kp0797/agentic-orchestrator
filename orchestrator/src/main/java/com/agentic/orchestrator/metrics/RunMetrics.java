@@ -143,6 +143,34 @@ public record RunMetrics(
         return Optional.of(Duration.ofMillis(total / ds.size()));
     }
 
+    /** Plain values (durations in milliseconds) for JSON reports. */
+    public Map<String, Object> toMap() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("runId", runId);
+        m.put("status", finalStatus);
+        m.put("nodes", nodes);
+        m.put("nodeStatuses", nodeStatuses);
+        m.put("attempts", attempts);
+        m.put("failedAttempts", failedAttempts);
+        m.put("attemptSuccessRate", attemptSuccessRate());
+        m.put("retries", retries);
+        m.put("fallbacks", fallbacks);
+        m.put("rollbacks", rollbacks);
+        m.put("compensations", compensations);
+        m.put("faultsInjected", faultsInjected);
+        m.put("approvalsRequested", approvalsRequested);
+        m.put("approvalsGranted", approvalsGranted);
+        m.put("approvalsRejected", approvalsRejected);
+        m.put("recoveredNodes", recoveredNodes);
+        m.put("endToEndMs", endToEnd.toMillis());
+        m.put("humanWaitMs", humanWait.toMillis());
+        m.put("mttrMs", mttr.map(Duration::toMillis).orElse(null));
+        m.put("mttrExcludingHumanWaitMs", mttrExcludingHumanWait.map(Duration::toMillis).orElse(null));
+        m.put("tokens", tokens);
+        m.put("costUsd", costUsd);
+        return m;
+    }
+
     /** One-screen summary for the CLI and the evidence pack. */
     public String summary() {
         return String.format(

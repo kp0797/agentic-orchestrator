@@ -48,6 +48,8 @@ public class OrchestratorApplication {
                 case "fake-demo" -> new FakeDagDemo(System.out).runAll();
                 case "scenarios" -> runs.scenarios().forEach(s -> System.out.println(s.name() + "  " + s.description()));
                 case "run" -> runScenario(runs, rest);
+                case "eval" -> eval(runs, rest);
+                case "verify-evidence" -> verifyEvidence(rest);
                 case "ping-model" -> pingModel(runs);
                 default -> System.out.println("""
                         usage: orchestrator <command>
@@ -56,6 +58,10 @@ public class OrchestratorApplication {
                                                       run a scenario in the terminal; approvals are asked here,
                                                       or granted automatically and labelled as such.
                                                       Faults: node:exception[@1,2] or node:gate:<gate-id>[@1]
+                          eval <scenario>[,<scenario>...] [--runs N] [--inject <fault>]...
+                                                      run each scenario N times unattended; writes
+                                                      runs/eval-<time>/eval-summary.md and an evidence pack per run
+                          verify-evidence <dir>       re-check the audit hash chains in an evidence pack
                           scenarios                   list scenarios
                           ping-model                  one tiny live call (cheapest model) to check the API key
                           fake-demo                   engine demo with fake agents (no LLM)
@@ -114,6 +120,57 @@ public class OrchestratorApplication {
             System.out.println(RunMetrics.from(runs.events().events(runId)).summary());
         }
         System.out.println("\nResult: " + outcome.status() + (outcome.reason().isEmpty() ? "" : " (" + outcome.reason() + ")"));
-        o.planningRunId().ifPresent(id -> System.out.println("Workspace: " + runs.properties().runsDir() + "/" + id));
+        o.planningRunId().ifPresent(id -> {
+            System.out.println("Workspace: " + runs.properties().runsDir() + "/" + id);
+            java.nio.file.Path evidence = com.agentic.orchestrator.evidence.EvidencePack.write(o,
+                    java.nio.file.Path.of(runs.properties().runsDir(), id, "evidence"),
+                    runs.properties().mode().name().toLowerCase());
+            System.out.println("Evidence: " + evidence + "/README.md");
+        });
+    }
+
+    private static void eval(RunService runs, List<String> args) {
+        if (args.isEmpty()) {
+            throw new IllegalArgumentException("eval needs scenario names, e.g. eval pipeline-smoke,brownfield --runs 3");
+        }
+        List<String> scenarios = List.of(args.get(0).split(","));
+        int n = 3;
+        List<com.agentic.orchestrator.engine.FaultSpec> faults = new java.util.ArrayList<>();
+        for (int i = 1; i < args.size(); i++) {
+            switch (args.get(i)) {
+                case "--runs" -> n = Integer.parseInt(args.get(++i));
+                case "--inject" -> faults.add(com.agentic.orchestrator.engine.FaultSpec.parse(args.get(++i)));
+                default -> { /* Spring properties such as --agentic.runs-dir=... */ }
+            }
+        }
+        String stamp = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+                .withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now());
+        java.nio.file.Path outDir = java.nio.file.Path.of(runs.properties().runsDir(), "eval-" + stamp);
+        String mode = runs.properties().mode().name().toLowerCase();
+        var harness = new com.agentic.orchestrator.eval.EvalHarness(name -> runs.create(name,
+                ApprovalHandler.autoApprove("eval-harness"), faults, true), mode, System.out);
+        var report = harness.run(scenarios, n, outDir);
+        System.out.println();
+        System.out.println(report.markdown());
+        System.out.println("Written to " + outDir + "/eval-summary.md and eval-summary.json");
+    }
+
+    private static void verifyEvidence(List<String> args) {
+        if (args.isEmpty()) {
+            throw new IllegalArgumentException("verify-evidence needs an evidence directory");
+        }
+        var results = com.agentic.orchestrator.evidence.AuditFile.verifyDirectory(java.nio.file.Path.of(args.get(0)));
+        boolean allValid = true;
+        for (var e : results.entrySet()) {
+            var r = e.getValue();
+            allValid &= r.valid();
+            System.out.println((r.valid() ? "VALID   " : "BROKEN  ") + e.getKey() + "  " + r.checked() + " events"
+                    + (r.valid() ? ", head " + r.headHash().substring(0, 16) : ", first bad event " + r.firstBadSeq()
+                    + ": " + r.reason()));
+        }
+        System.out.println(allValid ? "All audit chains verify." : "Tampering or corruption detected.");
+        if (!allValid) {
+            System.exit(1);
+        }
     }
 }

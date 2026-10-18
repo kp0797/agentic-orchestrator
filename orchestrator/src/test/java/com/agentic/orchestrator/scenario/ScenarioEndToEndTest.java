@@ -102,6 +102,24 @@ class ScenarioEndToEndTest {
         // Every model call carried the versioned prompt id, and token usage was recorded.
         assertThat(model.requests).allMatch(r -> r.params().get("prompt").matches(".+@v\\d+"));
         assertThat(o.engine().state(execution).tokensUsed()).isPositive();
+
+        // The evidence pack is complete and its audit logs verify on their own; editing one line is detected.
+        Path evidence = com.agentic.orchestrator.evidence.EvidencePack.write(o, runs.resolve("evidence"), "replay");
+        assertThat(Files.readString(evidence.resolve("README.md")))
+                .contains("# Evidence: codec - SUCCEEDED", "**replay** mode", "Human input", "APPROVAL_GRANTED",
+                        "Decisions recorded by agents", "Alphabet");
+        assertThat(Files.readString(evidence.resolve("change.diff"))).contains("Base62Codec.java", "CodecTest.java");
+        assertThat(Files.readString(evidence.resolve("manifest.json"))).contains("\"node\" : \"plan\"", "promptHash");
+        assertThat(evidence.resolve("artifacts").resolve(planning).resolve("plan/attempt-1/plan.json")).exists();
+        var verified = com.agentic.orchestrator.evidence.AuditFile.verifyDirectory(evidence);
+        assertThat(verified).hasSize(2).allSatisfy((file, r) -> assertThat(r.valid()).as(file).isTrue());
+        Path audit = evidence.resolve("audit").resolve(execution + ".jsonl");
+        String original = Files.readString(audit);
+        assertThat(original).contains("\"attempt\" : \"1\"");
+        Files.writeString(audit, original.replaceFirst("\"attempt\" : \"1\"", "\"attempt\" : \"2\""));
+        var tampered = com.agentic.orchestrator.evidence.AuditFile.verifyDirectory(evidence).get(execution + ".jsonl");
+        assertThat(tampered.valid()).isFalse();
+        assertThat(tampered.reason()).doesNotContain("unreadable"); // a valid line with a changed value, caught by its hash
     }
 
     @Test

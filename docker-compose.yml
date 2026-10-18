@@ -3,6 +3,7 @@
 #   docker compose run --rm smoke           pipeline-smoke scenario, replayed, approvals automatic
 #   docker compose run --rm brownfield      fix a production bug in the existing shortener, replayed (about 5 min)
 #   docker compose run --rm ambiguous       unclear request: questions answered, scope changed mid-run, re-planned
+#   docker compose run --rm eval            all three scenarios 3 times each: reliability summary in runs/eval-*/
 #   docker compose up console               approval console on http://localhost:8080 (replay mode)
 #   docker compose --profile live run --rm ping   one tiny live call to check ANTHROPIC_API_KEY (costs < $0.01)
 #   docker compose run --rm test            full test suite, output also saved to build.log
@@ -38,6 +39,10 @@ services:
   ambiguous:
     <<: *orchestrator
     command: ["run", "ambiguous", "--auto-approve"]
+
+  eval:
+    <<: *orchestrator
+    command: ["eval", "pipeline-smoke,brownfield,ambiguous", "--runs", "3"]
 
   console:
     <<: *orchestrator
